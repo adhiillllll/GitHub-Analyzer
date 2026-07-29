@@ -6,23 +6,28 @@ import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
 import { GitHubRepository } from "@/types/github"
 import { getRepository } from "@/services/github.service"
+import RepositoryCard from "./RepositoryCard";
 
 export default function SearchForm() {
 
     const [ url , setUrl ] = useState("")
     const [ repository , setRepository ] = useState<GitHubRepository | null>(null);
     const [ error , setError ] = useState("")
+    const [ loading , setLoading ] =useState(false);
 
-    const handleSubmit = async () => {
-      setError("")
+    const handleSubmit = async ( e: React.FormEvent<HTMLFormElement> ) => {
+      e.preventDefault()
 
-      const result = validateGithubUrl(url)
+      setError("");
+      setRepository(null);
+
+      const result = validateGithubUrl(url.trim())
       
       if (!result.valid){
-        setRepository(null);
         setError(result.error ?? "Invalid URL");
         return;
       }
+      setLoading(true)
 
       try {
         const data = await getRepository(
@@ -31,10 +36,12 @@ export default function SearchForm() {
         );
 
         setRepository(data);
-      } catch (err) {
+      } catch (error) {
         setRepository(null);
         setError("Repository not found.");
-        console.error(err);
+        console.error(error);
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -51,44 +58,36 @@ export default function SearchForm() {
             </p>
 
             <div className="mt-8">
-               
-                <Input placeholder="GitHub URL"  value={url}  onChange={(e) => setUrl(e.target.value)}/>
 
-                    {error && (
-                      <p className="text-sm text-red-500">
-                         {error}
-                      </p>
-                    )}
+               <form onSubmit={handleSubmit}   className="space-y-4">
+                <Input placeholder="GitHub URL"  value={url}  
+                    onChange={(e) => {
+                        const value = e.target.value;
+
+                        setUrl(value);
+
+                         if (!value.trim()) {
+                           setRepository(null);
+                           setError("");
+                         }
+                    }}/>
                
-                <Button onClick={handleSubmit}>
-                    Analyze
+                <Button type="submit"  disabled={loading  || !url.trim()}>
+                    {loading ? "Analyzing..." : "Analyze"}
                 </Button>
 
-                 {repository && (
-                    <div className="mt-8 rounded-lg border border-slate-700 p-6">
-                        <h2 className="text-2xl font-bold">
-                            {repository.full_name}
-                        </h2>
-                        <p className="mt-2">
-                            {repository.description}
-                        </p>
-                        <div className="mt-4 space-y-2">
-                            <p>
-                                Stars : {repository.stargazers_count}
-                            </p>
-                            <p>
-                                Forks : {repository.forks_count}
-                            </p>
-                            <p>
-                                Language : {repository.language}
-                            </p>
-                            <p>
-                                Open issues : {repository.open_issues_count}
-                            </p>
-                        </div>
-                    </div>
-                 )}
-               
+                {error && (
+                  <p className="text-red-500 text-sm">
+                     {error}
+                 </p>
+                )}
+
+                {repository && (
+                  <RepositoryCard repository={repository}/>
+                )}
+
+              </form>
+
             </div>
 
         </section>
