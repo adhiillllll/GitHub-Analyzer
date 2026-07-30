@@ -1,12 +1,15 @@
-import { GitHubRepository } from "@/types/github";
+import { GitHubRepository , GitHubLanguages } from "@/types/github";
 import { formatDate } from "@/utils/formatDate";
+import LanguageList from "./LanguageList";
+import RepositoryStats from "./RepositoryStats";
 
 type RepositoryCardProps = {
-    repository : GitHubRepository
+    repository : GitHubRepository,
+    languages : GitHubLanguages
 }
 
 export default function RepositoryCard ({
-    repository, }: RepositoryCardProps) {
+    repository, languages }: RepositoryCardProps) {
         return(
                 <div className="mt-8 rounded-lg border border-slate-700 p-6">
                         <h2 className="text-2xl font-bold">
@@ -15,22 +18,22 @@ export default function RepositoryCard ({
                         <p className="mt-2">
                             {repository.description ?? "No description available."}
                         </p>
-                        <div className="mt-4 space-y-2">
-                            <p>
-                                Stars : {repository.stargazers_count}
-                            </p>
-                            <p>
-                                Forks : {repository.forks_count}
-                            </p>
-                            <p>
-                                Language : {repository.language}
-                            </p>
-                            <p>
-                                Open issues : {repository.open_issues_count}
-                            </p>
-                            <p>
-                                Watchers : {repository.watchers_count}
-                            </p>
+
+                        <div className="grid grid-cols-2 gap-4 mt-6">
+                            
+                            <RepositoryStats icon="⭐"  title="Stars"  value={repository.stargazers_count} />
+                            
+                            <RepositoryStats  icon="🍴"  title="Forks"  value={repository.forks_count} />
+                            
+                            <RepositoryStats  icon="🐛"  title="Open Issues"  value={repository.open_issues_count}  />
+                            
+                            <RepositoryStats  icon="👁"  title="Watchers"  value={repository.watchers_count} />
+                            
+                        </div>
+
+                        <hr className="my-6 border-slate-700" />
+
+                        <div className="mt-4 space-y-4">
                             <p>
                                 Default Branch : {repository.default_branch}
                             </p>
@@ -44,6 +47,13 @@ export default function RepositoryCard ({
                                 Updated : {formatDate(repository.updated_at)}
                             </p>
                         </div>
+
+                            <hr className="my-6 border-slate-700" />
+                            
+                            <LanguageList languages={languages} />
+
+                        
                     </div>
+                    
         )
 }

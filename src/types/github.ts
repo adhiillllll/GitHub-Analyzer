@@ -17,3 +17,7 @@ export interface GitHubRepository {
     name: string;
   } | null;
 }
+
+export interface GitHubLanguages {
+  [language: string]: number;
+}

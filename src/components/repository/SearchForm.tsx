@@ -4,16 +4,18 @@ import Input from "../ui/Input"
 import Button from "../ui/Button"
 import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
-import { GitHubRepository } from "@/types/github"
-import { getRepository } from "@/services/github.service"
+import { GitHubRepository , GitHubLanguages } from "@/types/github"
+import { getRepository,getRepositoryLanguages } from "@/services/github.service"
 import RepositoryCard from "./RepositoryCard";
+
 
 export default function SearchForm() {
 
     const [ url , setUrl ] = useState("")
     const [ repository , setRepository ] = useState<GitHubRepository | null>(null);
     const [ error , setError ] = useState("")
-    const [ loading , setLoading ] =useState(false);
+    const [ loading , setLoading ] = useState(false);
+    const [ languages , setLanguages ] = useState<GitHubLanguages>({})
 
     const handleSubmit = async ( e: React.FormEvent<HTMLFormElement> ) => {
       e.preventDefault()
@@ -36,8 +38,17 @@ export default function SearchForm() {
         );
 
         setRepository(data);
+
+        const languageData = await getRepositoryLanguages(
+          result.owner!,
+          result.repo!
+        );
+
+        setLanguages(languageData);
+        
       } catch (error) {
         setRepository(null);
+        setLanguages({});
         setError("Repository not found.");
         console.error(error);
       } finally {
@@ -68,6 +79,7 @@ export default function SearchForm() {
 
                          if (!value.trim()) {
                            setRepository(null);
+                           setLanguages({})
                            setError("");
                          }
                     }}/>
@@ -83,7 +95,9 @@ export default function SearchForm() {
                 )}
 
                 {repository && (
-                  <RepositoryCard repository={repository}/>
+                  <RepositoryCard 
+                  repository={repository}
+                  languages={languages} />
                 )}
 
               </form>
