@@ -21,3 +21,11 @@ export interface GitHubRepository {
 export interface GitHubLanguages {
   [language: string]: number;
 }
+
+export interface GitHubContributor {
+  id: number;
+  login: string;
+  avatar_url: string;
+  contributions: number;
+  html_url: string;
+}

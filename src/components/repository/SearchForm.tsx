@@ -4,8 +4,8 @@ import Input from "../ui/Input"
 import Button from "../ui/Button"
 import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
-import { GitHubRepository , GitHubLanguages } from "@/types/github"
-import { getRepository,getRepositoryLanguages } from "@/services/github.service"
+import { GitHubRepository , GitHubLanguages , GitHubContributor } from "@/types/github"
+import { getRepository,getRepositoryLanguages,getRepositoryContributors } from "@/services/github.service"
 import RepositoryCard from "./RepositoryCard";
 
 
@@ -16,6 +16,7 @@ export default function SearchForm() {
     const [ error , setError ] = useState("")
     const [ loading , setLoading ] = useState(false);
     const [ languages , setLanguages ] = useState<GitHubLanguages>({})
+    const [contributors, setContributors] = useState<GitHubContributor[]>([]);
 
     const handleSubmit = async ( e: React.FormEvent<HTMLFormElement> ) => {
       e.preventDefault()
@@ -32,25 +33,23 @@ export default function SearchForm() {
       setLoading(true)
 
       try {
-        const data = await getRepository(
-          result.owner!,
-          result.repo!
-        );
+        const [repositoryData, languageData, contributorData] = await Promise.all([
+          getRepository(result.owner!, result.repo!),
+          getRepositoryLanguages(result.owner!, result.repo!),
+          getRepositoryContributors(result.owner!, result.repo!),
+        ]);
 
-        setRepository(data);
-
-        const languageData = await getRepositoryLanguages(
-          result.owner!,
-          result.repo!
-        );
-
+        setRepository(repositoryData);
         setLanguages(languageData);
+        setContributors(contributorData);
         
       } catch (error) {
         setRepository(null);
         setLanguages({});
+        setContributors([]);
         setError("Repository not found.");
         console.error(error);
+
       } finally {
         setLoading(false);
       }
@@ -80,6 +79,7 @@ export default function SearchForm() {
                          if (!value.trim()) {
                            setRepository(null);
                            setLanguages({})
+                           setContributors([]);
                            setError("");
                          }
                     }}/>
@@ -97,7 +97,8 @@ export default function SearchForm() {
                 {repository && (
                   <RepositoryCard 
                   repository={repository}
-                  languages={languages} />
+                  languages={languages}
+                  contributors={contributors} />
                 )}
 
               </form>

@@ -1,15 +1,17 @@
-import { GitHubRepository , GitHubLanguages } from "@/types/github";
+import { GitHubRepository , GitHubLanguages , GitHubContributor } from "@/types/github";
 import { formatDate } from "@/utils/formatDate";
 import LanguageList from "./LanguageList";
 import RepositoryStats from "./RepositoryStats";
+import ContributorList from "./ContributorList";
 
 type RepositoryCardProps = {
     repository : GitHubRepository,
-    languages : GitHubLanguages
+    languages : GitHubLanguages,
+    contributors: GitHubContributor[],
 }
 
 export default function RepositoryCard ({
-    repository, languages }: RepositoryCardProps) {
+    repository, languages, contributors }: RepositoryCardProps) {
         return(
                 <div className="mt-8 rounded-lg border border-slate-700 p-6">
                         <h2 className="text-2xl font-bold">
@@ -51,6 +53,10 @@ export default function RepositoryCard ({
                             <hr className="my-6 border-slate-700" />
                             
                             <LanguageList languages={languages} />
+
+                            <hr className="my-6 border-slate-700" />
+
+                            <ContributorList contributors={contributors} />
 
                         
                     </div>
