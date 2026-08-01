@@ -3,6 +3,8 @@ import { formatDate } from "@/utils/formatDate";
 import LanguageList from "./LanguageList";
 import RepositoryStats from "./RepositoryStats";
 import ContributorList from "./ContributorList";
+import { formatNumber } from "@/utils/formatNumber";
+import { formatSize } from "@/utils/formatSize";
 
 type RepositoryCardProps = {
     repository : GitHubRepository,
@@ -23,13 +25,13 @@ export default function RepositoryCard ({
 
                         <div className="grid grid-cols-2 gap-4 mt-6">
                             
-                            <RepositoryStats icon="⭐"  title="Stars"  value={repository.stargazers_count} />
+                            <RepositoryStats icon="⭐"  title="Stars"  value={formatNumber(repository.stargazers_count)} />
                             
-                            <RepositoryStats  icon="🍴"  title="Forks"  value={repository.forks_count} />
+                            <RepositoryStats  icon="🍴"  title="Forks"  value={formatNumber(repository.forks_count)} />
                             
-                            <RepositoryStats  icon="🐛"  title="Open Issues"  value={repository.open_issues_count}  />
+                            <RepositoryStats  icon="🐛"  title="Open Issues"  value={formatNumber(repository.open_issues_count)}  />
                             
-                            <RepositoryStats  icon="👁"  title="Watchers"  value={repository.watchers_count} />
+                            <RepositoryStats  icon="📦"  title="Size"  value={formatSize(repository.size)} />
                             
                         </div>
 

@@ -8,7 +8,8 @@ export interface GitHubRepository {
   forks_count: number;
   open_issues_count: number;
   html_url: string;
-  watchers_count: number;
+  // watchers_count: number;
+  size : number;
   default_branch: string;
   created_at: string;
   updated_at: string;

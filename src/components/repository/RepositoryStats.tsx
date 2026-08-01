@@ -1,9 +1,8 @@
-import { formatNumber } from "@/utils/formatNumber"
 
 type RepositoryStatsProps = {
     icon : React.ReactNode,
     title : string,
-    value : number,
+    value : string,
 }
 
 
@@ -21,7 +20,7 @@ export default function RepositoryStats({
             </div>
 
             <p className="mt-3 text-2xl font-bold text-white">
-                {formatNumber(value)}
+                {value}
             </p>
 
             <p className="text-sm text-slate-400"> 
