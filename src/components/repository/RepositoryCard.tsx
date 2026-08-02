@@ -6,6 +6,7 @@ import ContributorList from "./ContributorList";
 import { formatNumber } from "@/utils/formatNumber";
 import { formatSize } from "@/utils/formatSize";
 import ReadmeCard from "./ReadmeCard";
+import TopicList from "./TopicList";
 
 type RepositoryCardProps = {
     repository : GitHubRepository,
@@ -24,6 +25,12 @@ export default function RepositoryCard ({
                         <p className="mt-2">
                             {repository.description ?? "No description available."}
                         </p>
+
+                        <hr className="my-6 border-slate-700" />
+                        
+                        <TopicList topics={repository.topics} />
+
+                        <hr className="my-6 border-slate-700" />
 
                         <div className="grid grid-cols-2 gap-4 mt-6">
                             

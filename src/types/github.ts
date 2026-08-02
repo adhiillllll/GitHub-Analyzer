@@ -17,6 +17,7 @@ export interface GitHubRepository {
     key: string;
     name: string;
   } | null;
+  topics : string[];
 }
 
 export interface GitHubLanguages {
