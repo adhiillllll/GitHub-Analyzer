@@ -5,15 +5,17 @@ import RepositoryStats from "./RepositoryStats";
 import ContributorList from "./ContributorList";
 import { formatNumber } from "@/utils/formatNumber";
 import { formatSize } from "@/utils/formatSize";
+import ReadmeCard from "./ReadmeCard";
 
 type RepositoryCardProps = {
     repository : GitHubRepository,
     languages : GitHubLanguages,
     contributors: GitHubContributor[],
+    readme : string,
 }
 
 export default function RepositoryCard ({
-    repository, languages, contributors }: RepositoryCardProps) {
+    repository, languages, contributors , readme }: RepositoryCardProps) {
         return(
                 <div className="mt-8 rounded-lg border border-slate-700 p-6">
                         <h2 className="text-2xl font-bold">
@@ -59,6 +61,10 @@ export default function RepositoryCard ({
                             <hr className="my-6 border-slate-700" />
 
                             <ContributorList contributors={contributors} />
+
+                            <hr className="my-6 border-slate-700" />
+
+                            <ReadmeCard readme={readme} />
 
                         
                     </div>

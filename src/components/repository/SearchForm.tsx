@@ -5,8 +5,10 @@ import Button from "../ui/Button"
 import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
 import { GitHubRepository , GitHubLanguages , GitHubContributor } from "@/types/github"
-import { getRepository,getRepositoryLanguages,getRepositoryContributors } from "@/services/github.service"
+import { getRepository,getRepositoryLanguages,getRepositoryContributors,getRepositoryReadme } from "@/services/github.service"
 import RepositoryCard from "./RepositoryCard";
+import { decodeBase64 } from "@/utils/decodeBase64"
+import { log } from "console"
 
 
 export default function SearchForm() {
@@ -17,6 +19,7 @@ export default function SearchForm() {
     const [ loading , setLoading ] = useState(false);
     const [ languages , setLanguages ] = useState<GitHubLanguages>({})
     const [contributors, setContributors] = useState<GitHubContributor[]>([]);
+    const [readme, setReadme] = useState("");
 
     const handleSubmit = async ( e: React.FormEvent<HTMLFormElement> ) => {
       e.preventDefault()
@@ -33,21 +36,39 @@ export default function SearchForm() {
       setLoading(true)
 
       try {
-        const [repositoryData, languageData, contributorData] = await Promise.all([
+        const [repositoryData, languageData, contributorData] =
+         await Promise.all([
           getRepository(result.owner!, result.repo!),
           getRepositoryLanguages(result.owner!, result.repo!),
           getRepositoryContributors(result.owner!, result.repo!),
         ]);
 
+        let readme = "";
+
+        try {
+          const readmeData = await getRepositoryReadme(
+            result.owner!,
+            result.repo!, )
+
+            readme = decodeBase64(readmeData.content);
+
+        } catch {
+
+          console.log("Repository has no README.");
+          
+        }
+
         setRepository(repositoryData);
         setLanguages(languageData);
         setContributors(contributorData);
+        setReadme(readme)
         
       } catch (error) {
         setRepository(null);
         setLanguages({});
         setContributors([]);
-        setError("Repository not found.");
+        setError("Failed to analyze repository.");
+        setReadme("");
         console.error(error);
 
       } finally {
@@ -81,6 +102,7 @@ export default function SearchForm() {
                            setLanguages({})
                            setContributors([]);
                            setError("");
+                           setReadme("");
                          }
                     }}/>
                
@@ -98,7 +120,8 @@ export default function SearchForm() {
                   <RepositoryCard 
                   repository={repository}
                   languages={languages}
-                  contributors={contributors} />
+                  contributors={contributors}
+                  readme={readme} />
                 )}
 
               </form>

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { GitHubRepository,GitHubLanguages,GitHubContributor } from "@/types/github";
+import { GitHubRepository,GitHubLanguages,GitHubContributor,GitHubReadme } from "@/types/github";
 
 const githubApi = axios.create({
     baseURL:'https://api.github.com',
@@ -37,4 +37,15 @@ export async function getRepositoryContributors(
     const response = await githubApi.get<GitHubContributor[]>(`/repos/${owner}/${repo}/contributors`);
 
     return response.data;  
+}
+
+
+export async function getRepositoryReadme(
+    owner: string,
+    repo: string
+) : Promise<GitHubReadme> {
+
+  const response = await githubApi.get<GitHubReadme>(`/repos/${owner}/${repo}/readme`);
+
+  return response.data;
 }

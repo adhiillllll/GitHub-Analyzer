@@ -30,3 +30,9 @@ export interface GitHubContributor {
   contributions: number;
   html_url: string;
 }
+
+
+export interface GitHubReadme {
+  content : string;
+  encoding : string;
+}
