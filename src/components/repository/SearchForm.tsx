@@ -9,6 +9,7 @@ import { getRepository,getRepositoryLanguages,getRepositoryContributors,getRepos
 import RepositoryCard from "./RepositoryCard";
 import { decodeBase64 } from "@/utils/decodeBase64"
 import analyzeRepository from "@/lib/repositoryAnalyzer"
+import AnalysisCard from "./AnalysisCard"
 
 
 export default function SearchForm() {
@@ -26,7 +27,12 @@ export default function SearchForm() {
       e.preventDefault()
 
       setError("");
+      
       setRepository(null);
+      setLanguages({});
+      setContributors([]);
+      setReadme("");
+      setAnalysis(null);
 
       const result = validateGithubUrl(url.trim())
       
@@ -134,6 +140,11 @@ export default function SearchForm() {
                   languages={languages}
                   contributors={contributors}
                   readme={readme} />
+                )}
+
+                {analysis && (
+                  <AnalysisCard
+                  analysis={analysis} />
                 )}
 
               </form>
