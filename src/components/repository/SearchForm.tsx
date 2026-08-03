@@ -4,11 +4,11 @@ import Input from "../ui/Input"
 import Button from "../ui/Button"
 import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
-import { GitHubRepository , GitHubLanguages , GitHubContributor } from "@/types/github"
+import { GitHubRepository , GitHubLanguages , GitHubContributor , RepositoryAnalysis } from "@/types/github"
 import { getRepository,getRepositoryLanguages,getRepositoryContributors,getRepositoryReadme } from "@/services/github.service"
 import RepositoryCard from "./RepositoryCard";
 import { decodeBase64 } from "@/utils/decodeBase64"
-import { log } from "console"
+import analyzeRepository from "@/lib/repositoryAnalyzer"
 
 
 export default function SearchForm() {
@@ -20,6 +20,7 @@ export default function SearchForm() {
     const [ languages , setLanguages ] = useState<GitHubLanguages>({})
     const [contributors, setContributors] = useState<GitHubContributor[]>([]);
     const [readme, setReadme] = useState("");
+    const [analysis, setAnalysis] = useState<RepositoryAnalysis | null>(null);
 
     const handleSubmit = async ( e: React.FormEvent<HTMLFormElement> ) => {
       e.preventDefault()
@@ -43,14 +44,14 @@ export default function SearchForm() {
           getRepositoryContributors(result.owner!, result.repo!),
         ]);
 
-        let readme = "";
+        let decodedReadme = "";
 
         try {
           const readmeData = await getRepositoryReadme(
             result.owner!,
             result.repo!, )
 
-            readme = decodeBase64(readmeData.content);
+            decodedReadme = decodeBase64(readmeData.content);
 
         } catch {
 
@@ -58,17 +59,27 @@ export default function SearchForm() {
           
         }
 
+        const repositoryAnalysis = analyzeRepository(
+          repositoryData, 
+          contributorData,
+          decodedReadme
+        )
+
         setRepository(repositoryData);
         setLanguages(languageData);
         setContributors(contributorData);
-        setReadme(readme)
+        setReadme(decodedReadme)
+        setAnalysis(repositoryAnalysis);
         
       } catch (error) {
         setRepository(null);
         setLanguages({});
         setContributors([]);
-        setError("Failed to analyze repository.");
         setReadme("");
+        setAnalysis(null)
+
+        setError("Failed to analyze repository.");
+
         console.error(error);
 
       } finally {
@@ -101,8 +112,9 @@ export default function SearchForm() {
                            setRepository(null);
                            setLanguages({})
                            setContributors([]);
-                           setError("");
                            setReadme("");
+                           setAnalysis(null)
+                           setError("");
                          }
                     }}/>
                

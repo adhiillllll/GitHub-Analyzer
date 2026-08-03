@@ -37,3 +37,19 @@ export interface GitHubReadme {
   content : string;
   encoding : string;
 }
+
+
+export interface RepositoryAnalysis {
+  score : number;
+  documentation : string;
+  popularity : string;
+  maintenance : string;
+  activity : string;
+  community : string;
+
+}
+
+export interface AnalysisResult {
+    score: number;
+    label: string;
+}
