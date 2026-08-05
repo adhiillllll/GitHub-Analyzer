@@ -4,153 +4,225 @@ import Input from "../ui/Input"
 import Button from "../ui/Button"
 import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
-import { GitHubRepository , GitHubLanguages , GitHubContributor , RepositoryAnalysis } from "@/types/github"
-import { getRepository,getRepositoryLanguages,getRepositoryContributors,getRepositoryReadme } from "@/services/github.service"
+import { GitHubRepository, GitHubLanguages, GitHubContributor, RepositoryAnalysis } from "@/types/github"
+import { getRepository, getRepositoryLanguages, getRepositoryContributors, getRepositoryReadme } from "@/services/github.service"
 import RepositoryCard from "./RepositoryCard";
 import { decodeBase64 } from "@/utils/decodeBase64"
 import analyzeRepository from "@/lib/repositoryAnalyzer"
 import AnalysisCard from "./AnalysisCard"
+import ReactMarkdown from "react-markdown";
 
 
 export default function SearchForm() {
 
-    const [ url , setUrl ] = useState("")
-    const [ repository , setRepository ] = useState<GitHubRepository | null>(null);
-    const [ error , setError ] = useState("")
-    const [ loading , setLoading ] = useState(false);
-    const [ languages , setLanguages ] = useState<GitHubLanguages>({})
-    const [contributors, setContributors] = useState<GitHubContributor[]>([]);
-    const [readme, setReadme] = useState("");
-    const [analysis, setAnalysis] = useState<RepositoryAnalysis | null>(null);
+  const [url, setUrl] = useState("")
+  const [repository, setRepository] = useState<GitHubRepository | null>(null);
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false);
+  const [languages, setLanguages] = useState<GitHubLanguages>({})
+  const [contributors, setContributors] = useState<GitHubContributor[]>([]);
+  const [readme, setReadme] = useState("");
+  const [analysis, setAnalysis] = useState<RepositoryAnalysis | null>(null);
+  const [aiSummary, setAiSummary] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
-    const handleSubmit = async ( e: React.FormEvent<HTMLFormElement> ) => {
-      e.preventDefault()
+  const handleGenerateSummary = async () => {
 
-      setError("");
-      
-      setRepository(null);
-      setLanguages({});
-      setContributors([]);
-      setReadme("");
-      setAnalysis(null);
+    if (!repository || !analysis)
+      return;
 
-      const result = validateGithubUrl(url.trim())
-      
-      if (!result.valid){
-        setError(result.error ?? "Invalid URL");
-        return;
-      }
-      setLoading(true)
+    try {
 
-      try {
-        const [repositoryData, languageData, contributorData] =
-         await Promise.all([
+      setAiLoading(true);
+
+      const response = await fetch("/api/ai", {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          repository,
+          languages,
+          contributors,
+          readme,
+          analysis,
+        }),
+
+      });
+
+      const data = await response.json();
+
+      setAiSummary(data.summary);
+
+    } catch (error) {
+
+      console.error(error);
+
+    } finally {
+
+      setAiLoading(false);
+
+    }
+
+  };
+
+
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    setError("");
+
+    setRepository(null);
+    setLanguages({});
+    setContributors([]);
+    setReadme("");
+    setAnalysis(null);
+    setAiSummary("");
+
+    const result = validateGithubUrl(url.trim())
+
+    if (!result.valid) {
+      setError(result.error ?? "Invalid URL");
+      return;
+    }
+    setLoading(true)
+
+    try {
+      const [repositoryData, languageData, contributorData] =
+        await Promise.all([
           getRepository(result.owner!, result.repo!),
           getRepositoryLanguages(result.owner!, result.repo!),
           getRepositoryContributors(result.owner!, result.repo!),
         ]);
 
-        let decodedReadme = "";
+      let decodedReadme = "";
 
-        try {
-          const readmeData = await getRepositoryReadme(
-            result.owner!,
-            result.repo!, )
+      try {
+        const readmeData = await getRepositoryReadme(
+          result.owner!,
+          result.repo!,)
 
-            decodedReadme = decodeBase64(readmeData.content);
+        decodedReadme = decodeBase64(readmeData.content);
 
-        } catch {
+      } catch {
 
-          console.log("Repository has no README.");
-          
-        }
+        console.log("Repository has no README.");
 
-        const repositoryAnalysis = analyzeRepository(
-          repositoryData, 
-          contributorData,
-          decodedReadme
-        )
-
-        setRepository(repositoryData);
-        setLanguages(languageData);
-        setContributors(contributorData);
-        setReadme(decodedReadme)
-        setAnalysis(repositoryAnalysis);
-        
-      } catch (error) {
-        setRepository(null);
-        setLanguages({});
-        setContributors([]);
-        setReadme("");
-        setAnalysis(null)
-
-        setError("Failed to analyze repository.");
-
-        console.error(error);
-
-      } finally {
-        setLoading(false);
       }
+
+      const repositoryAnalysis = analyzeRepository(
+        repositoryData,
+        contributorData,
+        decodedReadme
+      )
+
+      setRepository(repositoryData);
+      setLanguages(languageData);
+      setContributors(contributorData);
+      setReadme(decodedReadme)
+      setAnalysis(repositoryAnalysis);
+
+    } catch (error) {
+      setRepository(null);
+      setLanguages({});
+      setContributors([]);
+      setReadme("");
+      setAnalysis(null)
+
+      setError("Failed to analyze repository.");
+
+      console.error(error);
+
+    } finally {
+      setLoading(false);
     }
+  }
 
-    return(
-        <section className="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
+  return (
+    <section className="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
 
-            <h1 className="text-3xl font-bold text-white">
-                GitHub Project Reviewer
-            </h1>
+      <h1 className="text-3xl font-bold text-white">
+        GitHub Project Reviewer
+      </h1>
 
-            <p className="mt-3 text-slate-400">
-                Paste any public GitHub Repository URL to analyze it's structure,
-                technologies and project health.
+      <p className="mt-3 text-slate-400">
+        Paste any public GitHub Repository URL to analyze it's structure,
+        technologies and project health.
+      </p>
+
+      <div className="mt-8">
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input placeholder="GitHub URL" value={url}
+            onChange={(e) => {
+              const value = e.target.value;
+
+              setUrl(value);
+
+              if (!value.trim()) {
+                setRepository(null);
+                setLanguages({})
+                setContributors([]);
+                setReadme("");
+                setAnalysis(null)
+                setAiSummary("");
+                setError("");
+              }
+            }} />
+
+          <Button type="submit" disabled={loading || !url.trim()}>
+            {loading ? "Analyzing..." : "Analyze"}
+          </Button>
+
+          {error && (
+            <p className="text-red-500 text-sm">
+              {error}
             </p>
+          )}
 
-            <div className="mt-8">
+          {repository && (
+            <RepositoryCard
+              repository={repository}
+              languages={languages}
+              contributors={contributors}
+              readme={readme} />
+          )}
 
-               <form onSubmit={handleSubmit}   className="space-y-4">
-                <Input placeholder="GitHub URL"  value={url}  
-                    onChange={(e) => {
-                        const value = e.target.value;
+          {analysis && (
+            <AnalysisCard
+              analysis={analysis} />
+          )}
 
-                        setUrl(value);
+          <button onClick={handleGenerateSummary}
+            disabled={aiLoading || !repository}>
+            {aiLoading ? "🤖 Thinking..." : "🤖 Generate AI Summary"}
+          </button>
 
-                         if (!value.trim()) {
-                           setRepository(null);
-                           setLanguages({})
-                           setContributors([]);
-                           setReadme("");
-                           setAnalysis(null)
-                           setError("");
-                         }
-                    }}/>
-               
-                <Button type="submit"  disabled={loading  || !url.trim()}>
-                    {loading ? "Analyzing..." : "Analyze"}
-                </Button>
+          {aiSummary && (
 
-                {error && (
-                  <p className="text-red-500 text-sm">
-                     {error}
-                 </p>
-                )}
+            <div className="mt-6 rounded-lg border border-slate-700 bg-slate-900 p-6">
 
-                {repository && (
-                  <RepositoryCard 
-                  repository={repository}
-                  languages={languages}
-                  contributors={contributors}
-                  readme={readme} />
-                )}
+              <h2 className="text-xl font-bold">
+                AI Summary
+              </h2>
 
-                {analysis && (
-                  <AnalysisCard
-                  analysis={analysis} />
-                )}
-
-              </form>
+              <div className="prose prose-invert max-w-none mt-4 max-h-[500px] overflow-y-auto">
+                <ReactMarkdown>
+                  {aiSummary}
+                </ReactMarkdown>
+              </div>
 
             </div>
+          )}
 
-        </section>
-    )
+        </form>
+
+      </div>
+
+    </section>
+  )
 }

@@ -11,6 +11,8 @@ export async function generateSummary(
 ) : Promise<string>{
     const response = await client.chat.completions.create({
         model: process.env.OPENROUTER_MODEL!,
+
+        max_tokens: 800,
         
         messages: [
         {

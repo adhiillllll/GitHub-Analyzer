@@ -1,12 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { generateSummary } from "@/services/ai.service";
+import { buildSummaryPrompt } from "@/lib/aiPrompts";
 
 
-export async function POST() {
+export async function POST(request : NextRequest) {
     
     try {
 
-        const summary = await generateSummary();
+        const body = await request.json();
+        
+        const {
+            repository,
+            languages,
+            contributors,
+            readme,
+            analysis,
+        } = body;
+
+        const prompt = buildSummaryPrompt(
+            repository,
+            languages,
+            contributors,
+            readme,
+            analysis
+        );
+
+        const summary = await generateSummary(prompt);
 
         return NextResponse.json({
             success: true,

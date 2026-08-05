@@ -44,9 +44,9 @@ export function buildSummaryPrompt(
     Activity:
     ${analysis.activity}
 
-    README:
+    README Preview:
 
-    ${readme}
+    ${readme.slice(0, 2000)}
     
     `
 }

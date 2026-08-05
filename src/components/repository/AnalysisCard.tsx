@@ -2,19 +2,19 @@ import { RepositoryAnalysis } from "@/types/github";
 import AnalysisItem from "./AnalysisItem";
 
 type AnalysisCardProps = {
-    analysis : RepositoryAnalysis;
+    analysis: RepositoryAnalysis;
 }
 
 export default function AnalysisCard({
     analysis,
-} : AnalysisCardProps ) {
+}: AnalysisCardProps) {
 
     return (
 
         <div className="rounded-xl border border-slate-700 bg-slate-900 p-6">
 
             <h2 className="text-2xl font-bold">
-                Repository Health 
+                Repository Health
             </h2>
 
             <p className="mt-4 text-3xl font-bold text-blue-400">
@@ -23,7 +23,7 @@ export default function AnalysisCard({
 
             <div className="mt-6 space-y-3">
 
-                <AnalysisItem 
+                <AnalysisItem
                     title="Documentation"
                     value={analysis.documentation} />
 

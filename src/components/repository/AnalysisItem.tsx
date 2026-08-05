@@ -6,7 +6,7 @@ type AnalysisItemProps = {
 export default function AnalysisItem({
     title,
     value,
-} : AnalysisItemProps ) {
+}: AnalysisItemProps) {
 
     return (
 
@@ -19,7 +19,7 @@ export default function AnalysisItem({
             <span className="font-semibold text-blue-400">
                 {value}
             </span>
-            
+
         </div>
 
     )
