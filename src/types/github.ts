@@ -53,3 +53,33 @@ export interface AnalysisResult {
     score: number;
     label: string;
 }
+
+export type GitHubTreeItem = {
+    path: string;
+    mode: string;
+    type: "blob" | "tree";
+    sha: string;
+    size?: number;
+    url: string;
+};
+
+export type GitHubTreeResponse = {
+    sha: string;
+    url: string;
+    tree: GitHubTreeItem[];
+    truncated: boolean;
+};
+
+export type GitHubFileContent = {
+    name: string;
+    path: string;
+    sha: string;
+    size: number;
+    url: string;
+    html_url: string;
+    git_url: string;
+    download_url: string | null;
+    type: "file";
+    content: string;
+    encoding: string;
+};

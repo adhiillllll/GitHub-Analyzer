@@ -3,7 +3,6 @@
 import { useState } from "react"
 import validateGithubUrl from "@/validators/github.validator"
 import { GitHubRepository, GitHubLanguages, GitHubContributor, RepositoryAnalysis } from "@/types/github"
-import { getRepository, getRepositoryLanguages, getRepositoryContributors, getRepositoryReadme } from "@/services/github.service"
 import RepositoryCard from "./RepositoryCard"
 import Sidebar from "./Sidebar"
 import Navbar from "../layout/Navbar"
@@ -12,6 +11,7 @@ import RepoUrlForm from "../home/RepoUrlForm"
 import RecentAnalysis from "../home/RecentAnalysis"
 import { decodeBase64 } from "@/utils/decodeBase64"
 import analyzeRepository from "@/lib/repositoryAnalyzer"
+import { CodeHealthResult } from "@/types/codeHealth"
 
 export default function SearchForm() {
   const [url, setUrl] = useState("")
@@ -25,6 +25,45 @@ export default function SearchForm() {
   const [aiSummary, setAiSummary] = useState("")
   const [aiLoading, setAiLoading] = useState(false)
   const [sidebarTab, setSidebarTab] = useState("Summary")
+  const [codeHealth, setCodeHealth] = useState<CodeHealthResult | null>(null)
+  const [codeHealthLoading, setCodeHealthLoading] = useState(false)
+
+
+  const generateCodeHealth = async (
+    owner: string,
+    repo: string,
+    branch: string
+  ) => {
+    try {
+      setCodeHealthLoading(true);
+      setCodeHealth(null);
+
+      const response = await fetch("/api/code-health", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          owner,
+          repo,
+          branch,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to generate code health");
+      }
+
+      setCodeHealth(data.codeHealth);
+    } catch (error) {
+      console.error("Code Health error:", error);
+      setCodeHealth(null);
+    } finally {
+      setCodeHealthLoading(false);
+    }
+  };
 
   const handleGenerateSummary = async () => {
     if (!repository || !analysis) return
@@ -62,6 +101,8 @@ export default function SearchForm() {
     setReadme("")
     setAnalysis(null)
     setAiSummary("")
+    setCodeHealth(null)
+    setCodeHealthLoading(false)
 
     const result = validateGithubUrl(targetUrl.trim())
 
@@ -73,23 +114,35 @@ export default function SearchForm() {
     setLoading(true)
 
     try {
-      const [repositoryData, languageData, contributorData] =
-        await Promise.all([
-          getRepository(result.owner!, result.repo!),
-          getRepositoryLanguages(result.owner!, result.repo!),
-          getRepositoryContributors(result.owner!, result.repo!),
-        ])
+      const response = await fetch("/api/github", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          owner: result.owner,
+          repo: result.repo,
+        }),
+      });
 
-      let decodedReadme = ""
+      const data = await response.json();
 
-      try {
-        const readmeData = await getRepositoryReadme(
-          result.owner!,
-          result.repo!
-        )
-        decodedReadme = decodeBase64(readmeData.content)
-      } catch {
-        console.log("Repository has no README.")
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to fetch repository.");
+      }
+
+      const repositoryData = data.repository;
+      const languageData = data.languages;
+      const contributorData = data.contributors;
+
+      let decodedReadme = "";
+
+      if (data.readme) {
+        try {
+          decodedReadme = decodeBase64(data.readme);
+        } catch {
+          console.log("Could not decode README.");
+        }
       }
 
       const repositoryAnalysis = analyzeRepository(
@@ -103,6 +156,15 @@ export default function SearchForm() {
       setContributors(contributorData)
       setReadme(decodedReadme)
       setAnalysis(repositoryAnalysis)
+
+      if (result.owner && result.repo) {
+        generateCodeHealth(
+          result.owner,
+          result.repo,
+          repositoryData.default_branch
+        )
+      }
+
     } catch (err) {
       setRepository(null)
       setLanguages({})
@@ -134,6 +196,8 @@ export default function SearchForm() {
     setReadme("")
     setAnalysis(null)
     setAiSummary("")
+    setCodeHealth(null)
+    setCodeHealthLoading(false)
     setError("")
   }
 
@@ -186,6 +250,10 @@ export default function SearchForm() {
                   aiSummary={aiSummary}
                   aiLoading={aiLoading}
                   onGenerateAiSummary={handleGenerateSummary}
+                  activeTab={sidebarTab}
+                  onSelectTab={setSidebarTab}
+                  codeHealth={codeHealth}
+                  codeHealthLoading={codeHealthLoading}
                 />
               </div>
             </main>

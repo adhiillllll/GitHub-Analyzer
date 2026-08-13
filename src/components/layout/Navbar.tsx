@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react';
+import Link from "next/link";
 import { BiSearch } from 'react-icons/bi';
 import { IoSettingsOutline, IoNotificationsOutline } from 'react-icons/io5';
 
@@ -9,14 +10,16 @@ type NavbarProps = {
   onNavigateTab?: (tab: string) => void;
 };
 
-export default function Navbar({ activeTab = 'Docs', onNavigateTab }: NavbarProps) {
+export default function Navbar({
+  activeTab = 'Docs',
+  onNavigateTab }: NavbarProps) {
   return (
     <header className="w-full border-b border-[#1b202e] bg-[#0d1017] px-6 py-3 flex items-center justify-between text-sm">
-      {/* Left: Brand Logo & Links */}
+
       <div className="flex items-center gap-8">
-        <a href="/" className="text-xl font-bold text-white tracking-wide hover:opacity-90 transition">
+        <Link href="/" className="text-xl font-bold text-white tracking-wide hover:opacity-90 transition" >
           RepoLens
-        </a>
+        </Link>
 
         <nav className="hidden md:flex items-center gap-6 text-slate-300 font-medium">
           <button
@@ -40,7 +43,7 @@ export default function Navbar({ activeTab = 'Docs', onNavigateTab }: NavbarProp
         </nav>
       </div>
 
-      {/* Right Controls: Search, Settings, Notifications, Profile */}
+
       <div className="flex items-center gap-4">
         <div className="relative flex items-center bg-[#141824] border border-[#232a3d] rounded-lg px-3 py-1.5 text-xs text-slate-300 w-48 sm:w-64 focus-within:border-slate-500 transition">
           <BiSearch className="text-slate-400 text-sm mr-2 shrink-0" />
