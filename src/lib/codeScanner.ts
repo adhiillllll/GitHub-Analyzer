@@ -14,9 +14,9 @@ type ScanOptions = {
 }
 
 const DEFAULT_OPTIONS: Required<ScanOptions> = {
-    maxFiles: 6,
-    maxFileSize: 30_000,
-    maxTotalSize: 60_000,
+    maxFiles: 30,
+    maxFileSize: 100_000,
+    maxTotalSize: 1_000_000,
 };
 
 const IGNORED_DIRECTORIES = [
