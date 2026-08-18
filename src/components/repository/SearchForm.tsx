@@ -27,7 +27,7 @@ export default function SearchForm() {
   const [sidebarTab, setSidebarTab] = useState("Summary")
   const [codeHealth, setCodeHealth] = useState<CodeHealthResult | null>(null)
   const [codeHealthLoading, setCodeHealthLoading] = useState(false)
-
+  const [codeHealthError, setCodeHealthError] = useState<string | null>(null)
 
   const generateCodeHealth = async (
     owner: string,
@@ -36,6 +36,7 @@ export default function SearchForm() {
   ) => {
     try {
       setCodeHealthLoading(true);
+      setCodeHealthError(null);
       setCodeHealth(null);
 
       const response = await fetch("/api/code-health", {
@@ -60,6 +61,7 @@ export default function SearchForm() {
     } catch (error) {
       console.error("Code Health error:", error);
       setCodeHealth(null);
+      setCodeHealthError(error instanceof Error ? error.message : "Failed to analyze code health.");
     } finally {
       setCodeHealthLoading(false);
     }
@@ -198,18 +200,28 @@ export default function SearchForm() {
     setAiSummary("")
     setCodeHealth(null)
     setCodeHealthLoading(false)
+    setCodeHealthError(null)
     setError("")
+  }
+
+  const handleRetryCodeHealth = () => {
+    if (repository) {
+      const parts = repository.full_name.split("/");
+      if (parts.length === 2) {
+        generateCodeHealth(parts[0], parts[1], repository.default_branch);
+      }
+    }
   }
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#0b0e14]">
-      {/* Global Navbar */}
+      
       <Navbar activeTab="Docs" />
 
-      {/* Main Content Area */}
+
       <div className="flex-1 flex flex-col">
         {!repository ? (
-          /* Landing / Hero State (Image 1) */
+          
           <main className="flex-1 flex items-center justify-center p-6 sm:p-10">
             <div className="w-full max-w-3xl mx-auto space-y-8 my-auto">
               <LogoSection />
@@ -254,6 +266,8 @@ export default function SearchForm() {
                   onSelectTab={setSidebarTab}
                   codeHealth={codeHealth}
                   codeHealthLoading={codeHealthLoading}
+                  codeHealthError={codeHealthError}
+                  onRetryCodeHealth={handleRetryCodeHealth}
                 />
               </div>
             </main>

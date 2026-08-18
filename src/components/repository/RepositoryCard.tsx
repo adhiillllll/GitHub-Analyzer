@@ -26,6 +26,8 @@ type RepositoryCardProps = {
   onSelectTab?: (tab: string) => void;
   codeHealth?: CodeHealthResult | null;
   codeHealthLoading?: boolean;
+  codeHealthError?: string | null;
+  onRetryCodeHealth?: () => void;
 };
 
 export default function RepositoryCard({
@@ -41,6 +43,8 @@ export default function RepositoryCard({
   onSelectTab,
   codeHealth,
   codeHealthLoading,
+  codeHealthError,
+  onRetryCodeHealth,
 }: RepositoryCardProps) {
 
 
@@ -209,6 +213,8 @@ export default function RepositoryCard({
             <CodeHealthPanel
               codeHealth={codeHealth}
               loading={codeHealthLoading}
+              error={codeHealthError}
+              onRetry={onRetryCodeHealth}
             />
           )}
 

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@openrouter/sdk": "^1.2.38",
     "@prisma/client": "^7.9.0",
     "axios": "^1.18.1",
     "class-variance-authority": "^0.7.1",

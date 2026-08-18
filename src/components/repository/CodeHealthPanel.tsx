@@ -1,9 +1,11 @@
 import { CodeHealthResult } from "@/types/codeHealth";
-import { BiCheckCircle, BiError, BiRightArrowAlt } from "react-icons/bi";
+import { BiCheckCircle, BiError, BiRightArrowAlt, BiRefresh, BiLoaderAlt } from "react-icons/bi";
 
 type CodeHealthPanelProps = {
   codeHealth?: CodeHealthResult | null;
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 };
 
 function scoreLabel(score: number) {
@@ -16,23 +18,86 @@ function scoreLabel(score: number) {
 export default function CodeHealthPanel({
   codeHealth,
   loading = false,
+  error = null,
+  onRetry,
 }: CodeHealthPanelProps) {
 
   if (loading) {
-    return (
-      <div className="border border-[#1e2434] bg-[#121622] rounded-xl p-6">
-        <div className="animate-pulse space-y-5">
-          <div className="h-5 w-40 rounded bg-[#1c2332]" />
-          <div className="h-20 rounded bg-[#1c2332]" />
+    const steps = [
+      { label: "Repository fetched", status: "completed" },
+      { label: "Source files selected", status: "completed" },
+      { label: "Analyzing code chunks with LLM models", status: "active" },
+      { label: "Synthesizing category signals & observations", status: "pending" },
+      { label: "Preparing final engineering health report", status: "pending" },
+    ];
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-24 rounded-lg bg-[#1c2332]" />
-            ))}
+    return (
+      <div className="border border-[#1e2434] bg-[#121622] rounded-xl p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <BiLoaderAlt className="text-2xl text-[#00d68f] animate-spin" />
+          <div>
+            <h3 className="text-base font-semibold text-white">
+              Analyzing repository...
+            </h3>
+            <p className="text-xs text-slate-400">
+              Reviewing source code chunks and calculating engineering health metrics.
+            </p>
           </div>
         </div>
+
+        <div className="border border-[#1e2434] bg-[#0b0e14] rounded-lg p-5 space-y-3 font-mono text-xs">
+          {steps.map((step, idx) => (
+            <div key={idx} className="flex items-center gap-3">
+              {step.status === "completed" && (
+                <span className="text-[#00d68f]">✓</span>
+              )}
+              {step.status === "active" && (
+                <span className="text-[#00d68f] animate-pulse">→</span>
+              )}
+              {step.status === "pending" && (
+                <span className="text-slate-600">•</span>
+              )}
+
+              <span
+                className={
+                  step.status === "completed"
+                    ? "text-slate-300"
+                    : step.status === "active"
+                    ? "text-[#00d68f] font-semibold"
+                    : "text-slate-500"
+                }
+              >
+                {step.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="border border-red-900/40 bg-[#171116] rounded-xl p-8 text-center space-y-4">
+        <BiError className="mx-auto text-3xl text-red-400" />
+        <div>
+          <h3 className="text-base font-semibold text-white">
+            Code Health Analysis Failed
+          </h3>
+          <p className="mt-1 text-xs text-red-300/80 max-w-md mx-auto">
+            {error}
+          </p>
+        </div>
+
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#1e2434] hover:bg-[#283147] text-slate-200 text-xs font-semibold rounded-lg transition"
+          >
+            <BiRefresh className="text-base" />
+            <span>Retry Analysis</span>
+          </button>
+        )}
       </div>
     );
   }

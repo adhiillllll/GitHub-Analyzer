@@ -26,15 +26,17 @@ export default function Sidebar({
       <div className="space-y-6">
         {/* RepoLens Analysis Card */}
         <div className="border border-[#1e2434] bg-[#121622] rounded-xl p-3.5 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg border border-[#232a3d] bg-[#171c2a] flex items-center justify-center text-slate-200 shrink-0">
-            <div className="h-4 w-4 rounded-full border-2 border-slate-300 flex items-center justify-center">
-              <div className="h-1 w-1 rounded-full border border-slate-300" />
-            </div>
-          </div>
+          <img
+            src="/screen.png"
+            alt="CodeOrbit"
+            className="w-18 h-18 object-contain shrink-0"
+          />
+
           <div>
             <h4 className="text-xs font-bold text-slate-100 tracking-tight">
-              RepoLens Analysis
+              CodeOrbit Analysis
             </h4>
+
             <span className="text-[11px] font-mono text-slate-500">
               v2.4.0-stable
             </span>
@@ -58,11 +60,10 @@ export default function Sidebar({
               <button
                 key={item.id}
                 onClick={() => onSelectTab?.(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition ${
-                  isActive
-                    ? 'bg-[#00d68f] text-[#081510]'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#141824]'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition ${isActive
+                  ? 'bg-[#00d68f] text-[#081510]'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#141824]'
+                  }`}
               >
                 <Icon className={`text-base ${isActive ? 'text-[#081510]' : 'text-slate-400'}`} />
                 <span>{item.label}</span>

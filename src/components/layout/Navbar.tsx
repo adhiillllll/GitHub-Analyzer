@@ -18,7 +18,7 @@ export default function Navbar({
 
       <div className="flex items-center gap-8">
         <Link href="/" className="text-xl font-bold text-white tracking-wide hover:opacity-90 transition" >
-          RepoLens
+          CodeOrbit
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 text-slate-300 font-medium">

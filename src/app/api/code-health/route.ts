@@ -70,12 +70,22 @@ export async function POST(request: NextRequest) {
 
         console.error("Code Health error:", error);
 
+        const errorMessage =
+            error instanceof Error ? error.message : "Failed to analyze repository code.";
+
+        const isProviderError =
+            errorMessage.includes("AI provider") ||
+            errorMessage.includes("rate-limit") ||
+            errorMessage.includes("rate limit") ||
+            errorMessage.includes("unavailable");
+
         return NextResponse.json(
             {
                 success: false,
-                error: "Failed to analyze repository code.",
+                error: errorMessage,
+                isProviderUnavailable: isProviderError,
             },
-            { status: 500 }
+            { status: isProviderError ? 503 : 500 }
         );
     }
 }
