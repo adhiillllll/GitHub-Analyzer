@@ -5,7 +5,7 @@ import ContributorList from "./ContributorList";
 import ReadmeCard from "./ReadmeCard";
 import AnalysisCard from "./AnalysisCard";
 import SummaryPanel from "./SummaryPanel";
-import CodeHealthPanel from "./CodeHealthPanel";
+import CodeHealthPanel, { AnalysisMeta } from "./CodeHealthPanel";
 import { CodeHealthResult } from "@/types/codeHealth";
 import { formatNumber } from "@/utils/formatNumber";
 import { formatSize } from "@/utils/formatSize";
@@ -27,6 +27,9 @@ type RepositoryCardProps = {
   codeHealth?: CodeHealthResult | null;
   codeHealthLoading?: boolean;
   codeHealthError?: string | null;
+  codeHealthComplete?: boolean;
+  codeHealthStatus?: number | null;
+  codeHealthMeta?: AnalysisMeta | null;
   onRetryCodeHealth?: () => void;
 };
 
@@ -44,6 +47,9 @@ export default function RepositoryCard({
   codeHealth,
   codeHealthLoading,
   codeHealthError,
+  codeHealthComplete,
+  codeHealthStatus,
+  codeHealthMeta,
   onRetryCodeHealth,
 }: RepositoryCardProps) {
 
@@ -214,6 +220,9 @@ export default function RepositoryCard({
               codeHealth={codeHealth}
               loading={codeHealthLoading}
               error={codeHealthError}
+              complete={codeHealthComplete}
+              statusCode={codeHealthStatus}
+              analysisMeta={codeHealthMeta}
               onRetry={onRetryCodeHealth}
             />
           )}

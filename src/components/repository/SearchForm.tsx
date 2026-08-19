@@ -215,13 +215,13 @@ export default function SearchForm() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#0b0e14]">
-      
-      <Navbar activeTab="Docs" />
+
+      <Navbar />
 
 
       <div className="flex-1 flex flex-col">
         {!repository ? (
-          
+
           <main className="flex-1 flex items-center justify-center p-6 sm:p-10">
             <div className="w-full max-w-3xl mx-auto space-y-8 my-auto">
               <LogoSection />
@@ -243,7 +243,8 @@ export default function SearchForm() {
             </div>
           </main>
         ) : (
-          /* Dashboard Analysis State with Left Sidebar (Image 2) */
+
+
           <div className="flex-1 flex flex-col lg:flex-row">
             <Sidebar
               activeTab={sidebarTab}

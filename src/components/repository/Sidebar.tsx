@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react';
+import Image from 'next/image';
 import { BiFolder, BiBarChartAlt2, BiShieldQuarter, BiCategory, BiTerminal, BiListUl } from 'react-icons/bi';
 
 type SidebarProps = {
@@ -26,9 +27,11 @@ export default function Sidebar({
       <div className="space-y-6">
         {/* RepoLens Analysis Card */}
         <div className="border border-[#1e2434] bg-[#121622] rounded-xl p-3.5 flex items-center gap-3">
-          <img
+          <Image
             src="/screen.png"
             alt="CodeOrbit"
+            width={72}
+            height={72}
             className="w-18 h-18 object-contain shrink-0"
           />
 

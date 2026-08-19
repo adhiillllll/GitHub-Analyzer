@@ -98,13 +98,40 @@ export async function getRawRepositoryFile(
             .map(encodeURIComponent)
             .join("/")}`;
 
-    const response = await fetch(rawUrl);
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    if (!response.ok) {
-        throw new Error(
-            `Failed to fetch raw file: ${path} (${response.status})`
-        );
+    while (attempts < maxAttempts) {
+        attempts++;
+        try {
+            const response = await fetch(rawUrl);
+
+            if (response.ok) {
+                return await response.text();
+            }
+
+            // Permanent 404 error - do NOT retry repeatedly
+            if (response.status === 404) {
+                throw new Error(`Failed to fetch raw file: ${path} (404)`);
+            }
+
+            // Transient HTTP error (e.g. 502, 503, 504)
+            if (attempts < maxAttempts) {
+                const backoffMs = attempts === 1 ? 500 : 1000;
+                await new Promise((resolve) => setTimeout(resolve, backoffMs));
+                continue;
+            }
+
+            throw new Error(`Failed to fetch raw file: ${path} (${response.status})`);
+        } catch (err: unknown) {
+            const is404 = err instanceof Error && err.message.includes("(404)");
+            if (is404 || attempts >= maxAttempts) {
+                throw err;
+            }
+            const backoffMs = attempts === 1 ? 500 : 1000;
+            await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        }
     }
 
-    return response.text();
+    throw new Error(`Failed to fetch raw file: ${path}`);
 }

@@ -1,10 +1,14 @@
+import Image from "next/image";
+
 export default function LogoSection() {
     return (
         <header className="text-center mb-8 flex flex-col items-center">
 
-            <img
+            <Image
                 src="/screen.png"
                 alt="CodeOrbit"
+                width={160}
+                height={160}
                 className="w-40 h-40 object-contain mb-4"
             />
 

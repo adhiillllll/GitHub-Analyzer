@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const codeHealth = await generateCodeHealth(
+        const { result, complete, analysisMeta } = await generateCodeHealth(
             repository.full_name,
             languages,
             files
@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            codeHealth,
+            complete,
+            codeHealth: result,
+            analysisMeta,
             scannedFiles: files.map((file) => file.path),
             truncated: tree.truncated,
         });
@@ -73,16 +75,23 @@ export async function POST(request: NextRequest) {
         const errorMessage =
             error instanceof Error ? error.message : "Failed to analyze repository code.";
 
+        const meta = (error as Record<string, unknown>)?.analysisMeta;
+
         const isProviderError =
             errorMessage.includes("AI provider") ||
             errorMessage.includes("rate-limit") ||
             errorMessage.includes("rate limit") ||
-            errorMessage.includes("unavailable");
+            errorMessage.includes("unavailable") ||
+            errorMessage.includes("incomplete coverage");
 
         return NextResponse.json(
             {
                 success: false,
-                error: errorMessage,
+                complete: false,
+                error: isProviderError
+                    ? "AI analysis is temporarily unavailable because all configured AI providers are rate-limited."
+                    : errorMessage,
+                analysisMeta: meta || null,
                 isProviderUnavailable: isProviderError,
             },
             { status: isProviderError ? 503 : 500 }

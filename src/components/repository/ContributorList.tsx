@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { GitHubContributor } from "@/types/github";
 
 type ContributorListProps = {
@@ -33,9 +34,11 @@ export default function ContributorList({
                         title={`${c.login} (${c.contributions} contributions)`}
                         className="relative z-0 hover:z-10 transition transform hover:-translate-y-0.5"
                     >
-                        <img
+                        <Image
                             src={c.avatar_url}
                             alt={c.login}
+                            width={36}
+                            height={36}
                             className="h-9 w-9 rounded-full border-2 border-[#121622] object-cover"
                         />
                     </a>

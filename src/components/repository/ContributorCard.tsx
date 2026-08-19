@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { GitHubContributor } from "@/types/github";
 
 type ContributorCardProps = {
@@ -13,7 +14,7 @@ export default function ContributorCard({
            rel="noopener noreferrer"
            className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 p-3 hover:bg-slate-700 transition">
 
-            <img src={contributor.avatar_url}  alt={contributor.login}  className="h-12 w-12 rounded-full"  />
+            <Image src={contributor.avatar_url} alt={contributor.login} width={48} height={48} className="h-12 w-12 rounded-full" />
 
             <div>
 

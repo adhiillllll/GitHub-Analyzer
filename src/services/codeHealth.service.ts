@@ -9,6 +9,30 @@ import { buildCodeHealthGroupPrompt } from "@/lib/codeHealthGroupPrompt";
 import { buildCodeHealthChunkPrompt } from "@/lib/codeHealthChunkPrompt";
 
 
+export type ProviderStatusInfo = {
+    provider: string;
+    label: string;
+    model: string;
+    status: "available" | "rate_limited" | "error";
+    limitType?: string;
+    retryAfterSeconds?: number;
+};
+
+export type CodeHealthMeta = {
+    totalChunks: number;
+    successfulChunks: number;
+    failedChunks: number;
+    skippedChunks: number;
+    providers?: ProviderStatusInfo[];
+};
+
+export type GenerateCodeHealthResponse = {
+    result: CodeHealthResult;
+    complete: boolean;
+    analysisMeta: CodeHealthMeta;
+};
+
+
 const chunkObservationSchema = z.object({
     observations: z.array(
         z.object({
@@ -219,11 +243,51 @@ function extractAndParseJson<T = unknown>(text: string): T {
     throw new Error("Failed to extract valid JSON object from model response.");
 }
 
-function isRateLimitError(err: unknown): boolean {
+function getHttpStatus(err: unknown): number | null {
+    if (!err || typeof err !== "object") return null;
+    const e = err as Record<string, unknown>;
+    if (typeof e.status === "number") return e.status;
+    if (typeof e.statusCode === "number") return e.statusCode;
+    const nested = e.error && typeof e.error === "object" ? (e.error as Record<string, unknown>).error : null;
+    if (nested && typeof (nested as Record<string, unknown>).status === "number") {
+        return (nested as Record<string, unknown>).status as number;
+    }
+    return null;
+}
+
+function isRequestTooLargeError(err: unknown): boolean {
+    const status = getHttpStatus(err);
+    if (status === 413) return true;
+
     if (!err || typeof err !== "object") return false;
     const e = err as Record<string, unknown>;
 
-    if (e.status === 429 || e.statusCode === 429) return true;
+    const msg = String(e.message || "").toLowerCase();
+    if (
+        msg.includes("413") ||
+        msg.includes("request entity too large") ||
+        msg.includes("payload too large") ||
+        msg.includes("request too large") ||
+        msg.includes("context length exceeded") ||
+        msg.includes("maximum context length") ||
+        msg.includes("too many tokens") ||
+        msg.includes("reduce the length of the messages")
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+function isRateLimitError(err: unknown): boolean {
+    if (isRequestTooLargeError(err)) return false;
+
+    const status = getHttpStatus(err);
+    if (status === 429) return true;
+
+    if (!err || typeof err !== "object") return false;
+    const e = err as Record<string, unknown>;
+
     if (e.code === "rate_limit_exceeded" || e.code === 429) return true;
 
     const nestedError = e.error && typeof e.error === "object" ? (e.error as Record<string, unknown>).error : null;
@@ -250,10 +314,13 @@ function isRateLimitError(err: unknown): boolean {
 }
 
 function is400InvalidRequestError(err: unknown): boolean {
+    if (isRequestTooLargeError(err)) return false;
+
+    const status = getHttpStatus(err);
+    if (status === 400) return true;
+
     if (!err || typeof err !== "object") return false;
     const e = err as Record<string, unknown>;
-
-    if (e.status === 400 || e.statusCode === 400) return true;
 
     const msg = String(e.message || "").toLowerCase();
     if (
@@ -270,11 +337,11 @@ function is400InvalidRequestError(err: unknown): boolean {
 }
 
 function isNetworkOrServerError(err: unknown): boolean {
+    const status = getHttpStatus(err);
+    if (status && status >= 500 && status < 600) return true;
+
     if (!err || typeof err !== "object") return false;
     const e = err as Record<string, unknown>;
-
-    const status = (e.status || e.statusCode) as number | undefined;
-    if (status && status >= 500 && status < 600) return true;
 
     const code = String(e.code || "");
     if (["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED", "FETCH_ERROR"].includes(code)) return true;
@@ -322,15 +389,50 @@ function parseRetryAfterMs(err: unknown): number | null {
     return null;
 }
 
+function parseRateLimitDetails(err: unknown): { cooldownMs: number; limitType: string } {
+    const cooldownMs = parseRetryAfterMs(err) || 60_000;
+    let limitType = "AI provider rate limit reached";
+
+    if (err && typeof err === "object") {
+        const e = err as Record<string, unknown>;
+        const msg = String(e.message || "").toLowerCase();
+
+        if (msg.includes("tokens per day") || msg.includes("tpd")) {
+            limitType = "Tokens per day limit reached";
+        } else if (msg.includes("tokens per minute") || msg.includes("tpm")) {
+            limitType = "Tokens per minute limit reached";
+        } else if (msg.includes("requests per day") || msg.includes("rpd")) {
+            limitType = "Requests per day limit reached";
+        } else if (msg.includes("requests per minute") || msg.includes("rpm")) {
+            limitType = "Requests per minute limit reached";
+        } else if (msg.includes("token limit") || msg.includes("tokens")) {
+            limitType = "Token limit reached";
+        } else if (msg.includes("request limit") || msg.includes("requests")) {
+            limitType = "Request limit reached";
+        }
+
+        const headers = (e.headers || (e.response as Record<string, unknown> | undefined)?.headers) as Record<string, unknown> | undefined;
+        if (headers) {
+            if (headers["x-ratelimit-reset-tokens"]) {
+                limitType = "Token limit reached";
+            } else if (headers["x-ratelimit-reset-requests"]) {
+                limitType = "Request limit reached";
+            }
+        }
+    }
+
+    return { cooldownMs, limitType };
+}
+
 
 class CircuitBreakerManager {
-    private cooldowns = new Map<string, number>();
+    private cooldowns = new Map<string, { resetAt: number; limitType: string }>();
     private loggedCooldowns = new Set<string>();
 
     isAvailable(candidateKey: string): boolean {
-        const resetAt = this.cooldowns.get(candidateKey);
-        if (!resetAt) return true;
-        if (Date.now() >= resetAt) {
+        const entry = this.cooldowns.get(candidateKey);
+        if (!entry) return true;
+        if (Date.now() >= entry.resetAt) {
             this.cooldowns.delete(candidateKey);
             this.loggedCooldowns.delete(candidateKey);
             return true;
@@ -338,15 +440,26 @@ class CircuitBreakerManager {
         return false;
     }
 
+    getCooldownInfo(candidateKey: string): { retryAfterSeconds: number; limitType: string } | null {
+        const entry = this.cooldowns.get(candidateKey);
+        if (!entry) return null;
+        const remainingMs = entry.resetAt - Date.now();
+        if (remainingMs <= 0) return null;
+        return {
+            retryAfterSeconds: Math.ceil(remainingMs / 1000),
+            limitType: entry.limitType,
+        };
+    }
+
     markCooldown(candidateKey: string, providerName: string, err: unknown) {
-        const cooldownMs = parseRetryAfterMs(err) || 60_000;
+        const { cooldownMs, limitType } = parseRateLimitDetails(err);
         const resetAt = Date.now() + cooldownMs;
-        this.cooldowns.set(candidateKey, resetAt);
+        this.cooldowns.set(candidateKey, { resetAt, limitType });
 
         if (!this.loggedCooldowns.has(candidateKey)) {
             this.loggedCooldowns.add(candidateKey);
             const secs = Math.ceil(cooldownMs / 1000);
-            console.log(`Code Health: ${providerName} rate-limited; cooldown ${secs}s`);
+            console.log(`Code Health: ${providerName} rate-limited (${limitType}); cooldown ${secs}s`);
         }
     }
 }
@@ -363,6 +476,31 @@ type ProviderCandidate = {
     supportsReasoningEffort?: boolean;
 };
 
+function getProviderStatuses(codeCandidates: ProviderCandidate[]): ProviderStatusInfo[] {
+    return codeCandidates.map((candidate) => {
+        const cooldownInfo = globalCircuitBreaker.getCooldownInfo(candidate.key);
+
+        if (cooldownInfo) {
+            return {
+                provider: candidate.providerType,
+                label: candidate.label,
+                model: candidate.model,
+                status: "rate_limited",
+                limitType: cooldownInfo.limitType,
+                retryAfterSeconds: cooldownInfo.retryAfterSeconds,
+            };
+        }
+
+        return {
+            provider: candidate.providerType,
+            label: candidate.label,
+            model: candidate.model,
+            status: "available",
+        };
+    });
+}
+
+
 async function callProviderApi(
     candidate: ProviderCandidate,
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
@@ -377,15 +515,26 @@ async function callProviderApi(
             messages: messages as GroqCreateParams["messages"],
             temperature,
             max_completion_tokens: maxTokens,
-            response_format: { type: "json_object" },
         };
 
-        if (candidate.supportsReasoningEffort && reasoningEffort) {
-            reqBody.reasoning_effort = reasoningEffort;
+        if (candidate.supportsReasoningEffort) {
+            reqBody.response_format = { type: "json_object" };
+            if (reasoningEffort) {
+                reqBody.reasoning_effort = reasoningEffort;
+            }
         }
 
-        const res = (await client.chat.completions.create(reqBody)) as Groq.Chat.Completions.ChatCompletion;
-        return res.choices[0]?.message?.content || "";
+        try {
+            const res = (await client.chat.completions.create(reqBody)) as Groq.Chat.Completions.ChatCompletion;
+            return res.choices[0]?.message?.content || "";
+        } catch (err: unknown) {
+            if (is400InvalidRequestError(err) && reqBody.response_format) {
+                delete reqBody.response_format;
+                const res = (await client.chat.completions.create(reqBody)) as Groq.Chat.Completions.ChatCompletion;
+                return res.choices[0]?.message?.content || "";
+            }
+            throw err;
+        }
     } else {
         type OpenRouterCreateParams = Parameters<typeof openrouter.chat.completions.create>[0];
         const reqBody: OpenRouterCreateParams = {
@@ -466,14 +615,40 @@ async function executeProviderChain<T>(
                 reasoningEffort
             );
         } catch (err: unknown) {
-            if (isRateLimitError(err)) {
+            if (isRequestTooLargeError(err)) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                console.log(
+                    `Code Health: ${contextLabel} ${candidate.label} 413 Request Entity Too Large (${errMsg.slice(0, 80)}), trying next provider or splitting chunk`
+                );
+                // Do NOT mark rate-limit cooldown for 413!
+                continue;
+            }
+
+            const status = getHttpStatus(err);
+
+            if (status === 429 || isRateLimitError(err)) {
                 globalCircuitBreaker.markCooldown(candidate.key, candidate.providerName, err);
                 continue;
             }
 
-            if (is400InvalidRequestError(err)) {
+            if (status === 400 || is400InvalidRequestError(err)) {
+                const errMsg = err instanceof Error ? err.message : String(err);
                 console.log(
-                    `Code Health: ${contextLabel} ${candidate.label} 400 error, trying next provider`
+                    `Code Health: ${contextLabel} ${candidate.label} 400 error (${errMsg.slice(0, 80)}), trying next provider`
+                );
+                continue;
+            }
+
+            if (status === 401) {
+                console.log(
+                    `Code Health: ${contextLabel} ${candidate.label} 401 auth error, trying next provider`
+                );
+                continue;
+            }
+
+            if (status === 403) {
+                console.log(
+                    `Code Health: ${contextLabel} ${candidate.label} 403 quota/permission error, trying next provider`
                 );
                 continue;
             }
@@ -489,6 +664,9 @@ async function executeProviderChain<T>(
                         reasoningEffort
                     );
                 } catch (retryErr: unknown) {
+                    if (isRequestTooLargeError(retryErr)) {
+                        continue;
+                    }
                     if (isRateLimitError(retryErr)) {
                         globalCircuitBreaker.markCooldown(candidate.key, candidate.providerName, retryErr);
                     }
@@ -549,12 +727,239 @@ async function executeProviderChain<T>(
                         return { result: repairValidated, modelName: candidate.model };
                     }
                 } catch (repairErr: unknown) {
+                    if (isRequestTooLargeError(repairErr)) {
+                        continue;
+                    }
                     if (isRateLimitError(repairErr)) {
                         globalCircuitBreaker.markCooldown(candidate.key, candidate.providerName, repairErr);
                     }
                 }
             }
         }
+    }
+
+    return null;
+}
+
+
+async function analyzeChunkWithSplitting(
+    chunkFiles: ScannedFile[],
+    chunkLabel: string,
+    depth: number,
+    maxDepth: number,
+    codeCandidates: ProviderCandidate[],
+    repositoryName: string,
+    totalChunks: number,
+    logicalChunkIndex: number,
+    providerStats: Record<string, number>
+): Promise<z.infer<typeof chunkObservationSchema> | null> {
+    const prompt = buildCodeHealthChunkPrompt({
+        repositoryName,
+        chunkIndex: logicalChunkIndex,
+        totalChunks,
+        files: chunkFiles.map((file) => ({
+            path: file.path,
+            content: file.content,
+        })),
+    });
+
+    let lastWasTooLarge = false;
+
+    for (const candidate of codeCandidates) {
+        if (!globalCircuitBreaker.isAvailable(candidate.key)) {
+            continue;
+        }
+
+        const messages = [
+            {
+                role: "system" as const,
+                content: "You are a precise senior software engineer. Return ONLY valid raw JSON.",
+            },
+            {
+                role: "user" as const,
+                content: prompt,
+            },
+        ];
+
+        let responseContent: string | null = null;
+
+        try {
+            responseContent = await callProviderApi(candidate, messages, 0, 600, "low");
+        } catch (err: unknown) {
+            if (isRequestTooLargeError(err)) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                console.log(
+                    `Code Health: ${chunkLabel} ${candidate.label} 413 Request Entity Too Large (${errMsg.slice(0, 80)})`
+                );
+                lastWasTooLarge = true;
+                continue;
+            }
+
+            const status = getHttpStatus(err);
+            if (status === 429 || isRateLimitError(err)) {
+                globalCircuitBreaker.markCooldown(candidate.key, candidate.providerName, err);
+                continue;
+            }
+
+            if (status === 400 || is400InvalidRequestError(err)) {
+                const errMsg = err instanceof Error ? err.message : String(err);
+                console.log(
+                    `Code Health: ${chunkLabel} ${candidate.label} 400 error (${errMsg.slice(0, 80)}), trying next provider`
+                );
+                continue;
+            }
+
+            if (status === 401 || status === 403) {
+                console.log(`Code Health: ${chunkLabel} ${candidate.label} ${status} error, trying next provider`);
+                continue;
+            }
+
+            if (isNetworkOrServerError(err)) {
+                await new Promise((r) => setTimeout(r, 500 + Math.random() * 200));
+                try {
+                    responseContent = await callProviderApi(candidate, messages, 0, 600, "low");
+                } catch (retryErr: unknown) {
+                    if (isRequestTooLargeError(retryErr)) {
+                        lastWasTooLarge = true;
+                        continue;
+                    }
+                    if (isRateLimitError(retryErr)) {
+                        globalCircuitBreaker.markCooldown(candidate.key, candidate.providerName, retryErr);
+                    }
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
+
+        if (responseContent && responseContent.trim()) {
+            try {
+                const parsed = extractAndParseJson(responseContent);
+                const validated = chunkObservationSchema.parse(parsed);
+
+                const statsKey = candidate.providerName;
+                providerStats[statsKey] = (providerStats[statsKey] || 0) + 1;
+
+                return validated;
+            } catch (valErr: unknown) {
+                const errDetail = valErr instanceof Error ? valErr.message : String(valErr);
+                console.log(
+                    `Code Health: ${chunkLabel} ${candidate.label} returned invalid JSON/output, retrying once`
+                );
+
+                const repairMessages = [
+                    ...messages,
+                    { role: "assistant" as const, content: responseContent },
+                    {
+                        role: "user" as const,
+                        content: `CRITICAL INSTRUCTION: Your previous output failed schema validation with error: ${errDetail}. You MUST return ONLY valid JSON matching the exact required schema structure. All required keys must be present. Do NOT include markdown code blocks or explanatory prose outside the JSON object.`,
+                    },
+                ];
+
+                try {
+                    const repairContent = await callProviderApi(candidate, repairMessages, 0, 600, "low");
+                    if (repairContent && repairContent.trim()) {
+                        const repairParsed = extractAndParseJson(repairContent);
+                        const repairValidated = chunkObservationSchema.parse(repairParsed);
+
+                        const statsKey = candidate.providerName;
+                        providerStats[statsKey] = (providerStats[statsKey] || 0) + 1;
+
+                        return repairValidated;
+                    }
+                } catch (repairErr: unknown) {
+                    if (isRequestTooLargeError(repairErr)) {
+                        lastWasTooLarge = true;
+                    } else if (isRateLimitError(repairErr)) {
+                        globalCircuitBreaker.markCooldown(candidate.key, candidate.providerName, repairErr);
+                    }
+                }
+            }
+        }
+    }
+
+    // Automatically split oversized chunk into smaller sub-chunks
+    if (lastWasTooLarge && depth < maxDepth && chunkFiles.length > 1) {
+        console.log(
+            `Code Health: ${chunkLabel} oversized for provider(s); splitting chunk`
+        );
+
+        const mid = Math.ceil(chunkFiles.length / 2);
+        const subChunkFilesA = chunkFiles.slice(0, mid);
+        const subChunkFilesB = chunkFiles.slice(mid);
+
+        const subLabelA = `${chunkLabel}A`;
+        const subLabelB = `${chunkLabel}B`;
+
+        console.log(`Code Health: ${chunkLabel} → sub-chunk ${subLabelA}`);
+        console.log(`Code Health: ${chunkLabel} → sub-chunk ${subLabelB}`);
+
+        const resA = await analyzeChunkWithSplitting(
+            subChunkFilesA,
+            subLabelA,
+            depth + 1,
+            maxDepth,
+            codeCandidates,
+            repositoryName,
+            totalChunks,
+            logicalChunkIndex,
+            providerStats
+        );
+
+        if (!resA) {
+            console.log(`Code Health: sub-chunk ${subLabelA} failed`);
+            return null;
+        }
+        console.log(`Code Health: sub-chunk ${subLabelA} successful`);
+
+        const resB = await analyzeChunkWithSplitting(
+            subChunkFilesB,
+            subLabelB,
+            depth + 1,
+            maxDepth,
+            codeCandidates,
+            repositoryName,
+            totalChunks,
+            logicalChunkIndex,
+            providerStats
+        );
+
+        if (!resB) {
+            console.log(`Code Health: sub-chunk ${subLabelB} failed`);
+            return null;
+        }
+        console.log(`Code Health: sub-chunk ${subLabelB} successful`);
+
+        console.log(`Code Health: logical ${chunkLabel} completed`);
+
+        return {
+            observations: [...resA.observations, ...resB.observations],
+        };
+    }
+
+    // Single file oversized fallback: truncate single file content and retry
+    if (lastWasTooLarge && depth < maxDepth && chunkFiles.length === 1 && chunkFiles[0].content.length > 4000) {
+        console.log(`Code Health: single file ${chunkFiles[0].path} oversized; splitting content for sub-chunk retry`);
+        const truncatedFile: ScannedFile = {
+            ...chunkFiles[0],
+            content: chunkFiles[0].content.slice(0, Math.floor(chunkFiles[0].content.length / 2)) + "\n// [...remaining content truncated for provider context limit...]",
+        };
+        return await analyzeChunkWithSplitting(
+            [truncatedFile],
+            `${chunkLabel}T`,
+            depth + 1,
+            maxDepth,
+            codeCandidates,
+            repositoryName,
+            totalChunks,
+            logicalChunkIndex,
+            providerStats
+        );
+    }
+
+    if (lastWasTooLarge && depth >= maxDepth) {
+        console.log(`Code Health: logical ${chunkLabel} failed after maximum split depth`);
     }
 
     return null;
@@ -590,7 +995,7 @@ export async function generateCodeHealth(
     repositoryName: string,
     languages: Record<string, number>,
     files: ScannedFile[]
-): Promise<CodeHealthResult> {
+): Promise<GenerateCodeHealthResponse> {
 
     const primaryCodeModel = process.env.GROQ_CODE_MODEL || "openai/gpt-oss-20b";
     const openrouterCodeFallbackModel =
@@ -667,28 +1072,17 @@ export async function generateCodeHealth(
         chunks,
         2,
         async (chunk, i) => {
-            const prompt = buildCodeHealthChunkPrompt({
+            return await analyzeChunkWithSplitting(
+                chunk,
+                `chunk ${i + 1}`,
+                0,
+                2,
+                codeCandidates,
                 repositoryName,
-                chunkIndex: i + 1,
-                totalChunks: chunks.length,
-                files: chunk.map((file) => ({
-                    path: file.path,
-                    content: file.content,
-                })),
-            });
-
-            const execRes = await executeProviderChain({
-                candidates: codeCandidates,
-                prompt,
-                schema: chunkObservationSchema,
-                maxTokens: 600,
-                temperature: 0,
-                reasoningEffort: "low",
-                contextLabel: `chunk ${i + 1}`,
-                providerStats,
-            });
-
-            return execRes ? execRes.result : null;
+                chunks.length,
+                i + 1,
+                providerStats
+            );
         }
     );
 
@@ -696,16 +1090,43 @@ export async function generateCodeHealth(
         (res): res is z.infer<typeof chunkObservationSchema> => res !== null
     );
 
-    const skippedCount = chunks.length - chunkResults.length;
+    const totalChunks = chunks.length;
+    const successfulChunks = chunkResults.length;
+    const failedChunks = totalChunks - successfulChunks;
+    const skippedChunks = failedChunks;
+
+    const providerStatuses = getProviderStatuses(codeCandidates);
+
+    const analysisMeta: CodeHealthMeta = {
+        totalChunks,
+        successfulChunks,
+        failedChunks,
+        skippedChunks,
+        providers: providerStatuses,
+    };
 
     console.log(
-        `Code Health: ${chunkResults.length}/${chunks.length} chunks successful`
+        `Code Health: ${successfulChunks}/${totalChunks} chunks successful`
     );
 
-    if (chunkResults.length === 0) {
-        throw new Error("AI provider rate limit: All AI models are currently rate-limited or unavailable. Please try again in a few moments.");
+    if (successfulChunks === 0) {
+        const err = new Error(
+            "AI analysis is temporarily unavailable because all configured AI providers are rate-limited."
+        );
+        (err as unknown as Record<string, unknown>).analysisMeta = analysisMeta;
+        throw err;
     }
 
+    const coverageRatio = successfulChunks / totalChunks;
+    if (totalChunks >= 3 && (coverageRatio < 0.75 || successfulChunks < 3)) {
+        const err = new Error(
+            `Code Health analysis could not be completed (incomplete coverage: ${successfulChunks}/${totalChunks} chunks analyzed).`
+        );
+        (err as unknown as Record<string, unknown>).analysisMeta = analysisMeta;
+        throw err;
+    }
+
+    const complete = successfulChunks === totalChunks;
 
     let groupResults: unknown[];
 
@@ -818,8 +1239,15 @@ export async function generateCodeHealth(
     console.log(`- OpenRouter coding fallback: ${providerStats["OpenRouter coding fallback"] || 0} successful`);
     console.log(`- OpenRouter free router: ${providerStats["OpenRouter free router"] || 0} successful`);
     console.log(`- Groq Compound fallback: ${providerStats["Groq Compound fallback"] || 0} successful`);
-    console.log(`- Skipped: ${skippedCount}`);
+    console.log(`- Skipped: ${skippedChunks}`);
     console.log(`- Total chunks: ${chunks.length}\n`);
 
-    return finalRes.result;
+    return {
+        result: finalRes.result,
+        complete,
+        analysisMeta: {
+            ...analysisMeta,
+            providers: getProviderStatuses(codeCandidates),
+        },
+    };
 }
