@@ -31,6 +31,9 @@ type RepositoryCardProps = {
   codeHealthStatus?: number | null;
   codeHealthMeta?: AnalysisMeta | null;
   onRetryCodeHealth?: () => void;
+  isFavorite?: boolean;
+  favoriteLoading?: boolean;
+  onToggleFavorite?: () => void;
 };
 
 export default function RepositoryCard({
@@ -51,6 +54,9 @@ export default function RepositoryCard({
   codeHealthStatus,
   codeHealthMeta,
   onRetryCodeHealth,
+  isFavorite,
+  favoriteLoading,
+  onToggleFavorite,
 }: RepositoryCardProps) {
 
 
@@ -72,15 +78,31 @@ export default function RepositoryCard({
           </h1>
         </div>
 
-        <a
-          href={repository.html_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 border border-[#232a3d] bg-[#121622] hover:bg-[#181d2a] text-slate-200 text-xs px-3.5 py-2 rounded-lg font-medium transition shrink-0 self-start sm:self-auto"
-        >
-          <FiExternalLink className="text-sm" />
-          <span>GitHub</span>
-        </a>
+        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            disabled={favoriteLoading}
+            className={`inline-flex items-center gap-2 border text-xs px-3.5 py-2 rounded-lg font-medium transition disabled:opacity-60 ${
+              isFavorite
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                : "border-[#232a3d] bg-[#121622] hover:bg-[#181d2a] text-slate-200"
+            }`}
+          >
+            <BiStar className="text-sm" />
+            <span>{isFavorite ? "Saved" : "Save"}</span>
+          </button>
+
+          <a
+            href={repository.html_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 border border-[#232a3d] bg-[#121622] hover:bg-[#181d2a] text-slate-200 text-xs px-3.5 py-2 rounded-lg font-medium transition"
+          >
+            <FiExternalLink className="text-sm" />
+            <span>GitHub</span>
+          </a>
+        </div>
       </div>
 
       {/* Repository Badges Row */}

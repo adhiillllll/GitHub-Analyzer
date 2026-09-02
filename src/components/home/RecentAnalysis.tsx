@@ -1,34 +1,62 @@
 'use client'
 
-import React from 'react';
+import Link from 'next/link';
+import React, { useEffect, useState } from 'react';
 import { BiFolder, BiStar } from 'react-icons/bi';
+import { formatNumber } from '@/utils/formatNumber';
 
 type RecentAnalysisProps = {
   onSelectRepo?: (url: string) => void;
 };
 
-const RECENT_REPOS = [
-  {
-    name: 'facebook/react',
-    url: 'https://github.com/facebook/react',
-    version: 'v18.2.0',
-    stars: '211k',
-  },
-  {
-    name: 'tailwindcss/tailwindcss',
-    url: 'https://github.com/tailwindcss/tailwindcss',
-    version: 'v3.4.1',
-    stars: '74.5k',
-  },
-  {
-    name: 'vercel/next.js',
-    url: 'https://github.com/vercel/next.js',
-    version: 'v14.1.0',
-    stars: '118k',
-  },
-];
+type RecentItem = {
+  id: string;
+  fullName: string;
+  githubUrl: string;
+  language: string | null;
+  stars: number | null;
+};
 
 export default function RecentAnalysis({ onSelectRepo }: RecentAnalysisProps) {
+  const [recentRepos, setRecentRepos] = useState<RecentItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadHistory() {
+      try {
+        const response = await fetch("/api/history");
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (mounted && data.success && Array.isArray(data.history)) {
+          const seen = new Set<string>();
+          const uniqueItems = data.history.filter((item: RecentItem) => {
+            if (seen.has(item.githubUrl)) return false;
+            seen.add(item.githubUrl);
+            return true;
+          });
+          setRecentRepos(uniqueItems.slice(0, 3));
+        }
+      } finally {
+        if (mounted) {
+          setLoaded(true);
+        }
+      }
+    }
+
+    loadHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="w-full mt-10">
       {/* Header with bottom border divider matching mockup screenshot */}
@@ -36,38 +64,44 @@ export default function RecentAnalysis({ onSelectRepo }: RecentAnalysisProps) {
         <h3 className="text-sm font-semibold text-slate-200 tracking-wide">
           Recent Analyses
         </h3>
-        <button className="text-xs text-slate-300 hover:text-white font-medium transition cursor-pointer">
+        <Link href="/history" className="text-xs text-slate-300 hover:text-white font-medium transition cursor-pointer">
           View All
-        </button>
+        </Link>
       </div>
 
       {/* 3-Column Card Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {RECENT_REPOS.map((item) => (
+      {recentRepos.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {recentRepos.map((item) => (
           <div
-            key={item.name}
-            onClick={() => onSelectRepo?.(item.url)}
+            key={item.id}
+            onClick={() => onSelectRepo?.(item.githubUrl)}
             className="group border border-[#232938] bg-[#141824] hover:bg-[#191f2e] hover:border-[#38435d] rounded-lg p-5 transition cursor-pointer flex flex-col justify-between shadow-md"
           >
             <div className="flex items-start gap-3">
               <BiFolder className="text-slate-300 text-2xl shrink-0 mt-0.5 group-hover:text-blue-400 transition" />
               <div className="min-w-0">
                 <h4 className="font-bold text-sm text-slate-100 truncate group-hover:text-white transition">
-                  {item.name}
+                  {item.fullName}
                 </h4>
                 <p className="text-xs text-slate-400 font-mono mt-0.5">
-                  {item.version}
+                  {item.language ?? "Unknown"}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center justify-end gap-1.5 text-xs text-slate-300 font-mono mt-5">
               <BiStar className="text-amber-400 text-sm" />
-              <span>{item.stars}</span>
+              <span>{formatNumber(item.stars ?? 0)}</span>
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      ) : (
+        <div className="border border-[#232938] bg-[#141824] rounded-lg p-5 text-xs text-slate-400 font-mono">
+          {loaded ? "No recent analyses yet." : "Loading recent analyses..."}
+        </div>
+      )}
     </div>
   );
 }

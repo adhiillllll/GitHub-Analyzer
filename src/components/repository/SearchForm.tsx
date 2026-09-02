@@ -28,6 +28,30 @@ export default function SearchForm() {
   const [codeHealth, setCodeHealth] = useState<CodeHealthResult | null>(null)
   const [codeHealthLoading, setCodeHealthLoading] = useState(false)
   const [codeHealthError, setCodeHealthError] = useState<string | null>(null)
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
+
+  const loadFavoriteState = async (githubUrl: string) => {
+    try {
+      const response = await fetch("/api/favorites");
+
+      if (!response.ok) {
+        setIsFavorite(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      setIsFavorite(
+        data.success &&
+          data.favorites.some(
+            (favorite: { githubUrl: string }) => favorite.githubUrl === githubUrl
+          )
+      );
+    } catch {
+      setIsFavorite(false);
+    }
+  };
 
   const generateCodeHealth = async (
     owner: string,
@@ -105,6 +129,7 @@ export default function SearchForm() {
     setAiSummary("")
     setCodeHealth(null)
     setCodeHealthLoading(false)
+    setIsFavorite(false)
 
     const result = validateGithubUrl(targetUrl.trim())
 
@@ -158,6 +183,7 @@ export default function SearchForm() {
       setContributors(contributorData)
       setReadme(decodedReadme)
       setAnalysis(repositoryAnalysis)
+      loadFavoriteState(repositoryData.html_url)
 
       if (result.owner && result.repo) {
         generateCodeHealth(
@@ -201,6 +227,7 @@ export default function SearchForm() {
     setCodeHealth(null)
     setCodeHealthLoading(false)
     setCodeHealthError(null)
+    setIsFavorite(false)
     setError("")
   }
 
@@ -210,6 +237,32 @@ export default function SearchForm() {
       if (parts.length === 2) {
         generateCodeHealth(parts[0], parts[1], repository.default_branch);
       }
+    }
+  }
+
+  const handleToggleFavorite = async () => {
+    if (!repository || favoriteLoading) return;
+
+    try {
+      setFavoriteLoading(true);
+
+      const response = await fetch("/api/favorites", {
+        method: isFavorite ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          isFavorite
+            ? { githubUrl: repository.html_url }
+            : { repository }
+        ),
+      });
+
+      if (response.ok) {
+        setIsFavorite((current) => !current);
+      }
+    } finally {
+      setFavoriteLoading(false);
     }
   }
 
@@ -269,6 +322,9 @@ export default function SearchForm() {
                   codeHealthLoading={codeHealthLoading}
                   codeHealthError={codeHealthError}
                   onRetryCodeHealth={handleRetryCodeHealth}
+                  isFavorite={isFavorite}
+                  favoriteLoading={favoriteLoading}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               </div>
             </main>

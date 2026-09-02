@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import UserAvatar from '@/components/ui/UserAvatar';
 import { BiSearch, BiPalette, BiSlider, BiInfoCircle } from 'react-icons/bi';
 import { IoSettingsOutline, IoNotificationsOutline, IoMenu, IoClose } from 'react-icons/io5';
 
@@ -11,11 +13,19 @@ type NavbarProps = {
   onNavigateTab?: (tab: string) => void;
 };
 
+type SessionUser = {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+};
+
 export default function Navbar({ activeTab, onNavigateTab }: NavbarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [showSettings, setShowSettings] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [fetchedUser, setFetchedUser] = useState<SessionUser | null>(null);
 
   const settingsRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -32,6 +42,29 @@ export default function Navbar({ activeTab, onNavigateTab }: NavbarProps) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      try {
+        const response = await fetch("/api/auth/session");
+        if (!mounted || !response.ok) return;
+        const data = await response.json();
+        setFetchedUser(data?.user ?? null);
+      } catch (err) {
+        // ignore fetch error
+      }
+    }
+
+    loadSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [pathname]);
+
+  const sessionUser = session?.user ?? fetchedUser;
 
   const isHistoryActive = activeTab === 'History' || pathname === '/history';
   const isFavoritesActive = activeTab === 'Favorites' || pathname === '/favorites';
@@ -145,13 +178,22 @@ export default function Navbar({ activeTab, onNavigateTab }: NavbarProps) {
         {/* Profile Link */}
         <Link
           href="/profile"
-          className={`border text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+          className={`border text-xs px-2.5 py-1.5 rounded-lg font-medium transition inline-flex items-center gap-2 ${
             isProfileActive
               ? 'border-[#00d68f] bg-[#00d68f]/10 text-[#00d68f]'
               : 'border-[#283147] bg-[#141824] text-slate-200 hover:bg-[#1b2234] hover:text-white'
           }`}
         >
-          Profile
+          <UserAvatar
+            src={sessionUser?.image}
+            name={sessionUser?.name}
+            email={sessionUser?.email}
+            className="w-5 h-5 rounded-full bg-[#1c2234] border border-[#283147] overflow-hidden flex items-center justify-center text-[10px] font-semibold uppercase text-slate-200 shrink-0"
+            iconClassName="text-slate-300 text-xs"
+          />
+          <span className="hidden sm:inline max-w-24 truncate">
+            {sessionUser ? sessionUser.name ?? sessionUser.email ?? "Profile" : "Sign in"}
+          </span>
         </Link>
 
         {/* Mobile Menu Toggle */}

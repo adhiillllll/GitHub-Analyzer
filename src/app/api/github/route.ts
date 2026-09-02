@@ -6,6 +6,8 @@ import {
   getRepositoryContributors,
   getRepositoryReadme,
 } from "@/services/github.service";
+import { getCurrentUserId } from "@/lib/currentUser";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,6 +37,47 @@ export async function POST(request: NextRequest) {
       readme = readmeData.content;
     } catch {
       console.log("Repository has no README.");
+    }
+
+    const userId = await getCurrentUserId();
+
+    if (userId) {
+      const [repoOwner] = repository.full_name.split("/");
+
+      const existingHistory = await prisma.searchHistory.findFirst({
+        where: {
+          userId,
+          githubUrl: repository.html_url,
+        },
+      });
+
+      if (existingHistory) {
+        await prisma.searchHistory.update({
+          where: { id: existingHistory.id },
+          data: {
+            owner: repoOwner,
+            name: repository.name,
+            fullName: repository.full_name,
+            description: repository.description,
+            stars: repository.stargazers_count,
+            language: repository.language,
+            createdAt: new Date(),
+          },
+        });
+      } else {
+        await prisma.searchHistory.create({
+          data: {
+            userId,
+            owner: repoOwner,
+            name: repository.name,
+            fullName: repository.full_name,
+            githubUrl: repository.html_url,
+            description: repository.description,
+            stars: repository.stargazers_count,
+            language: repository.language,
+          },
+        });
+      }
     }
 
     return NextResponse.json({
