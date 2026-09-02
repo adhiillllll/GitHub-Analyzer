@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import axios from "axios";
 
 import {
   getRepository,
@@ -90,12 +91,44 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("GitHub API error:", error);
 
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      if (status === 404) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Repository not found. Please check the owner and repository name, or verify if it is a private repository.",
+          },
+          { status: 404 }
+        );
+      }
+      if (status === 403 || status === 429) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "GitHub API rate limit exceeded or access forbidden. Please try again later.",
+          },
+          { status: 403 }
+        );
+      }
+      if (status === 401) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Unauthorized access to GitHub repository.",
+          },
+          { status: 401 }
+        );
+      }
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch repository data.",
+        error: "Failed to fetch repository data from GitHub. Please check the URL and try again.",
       },
       { status: 500 }
     );
   }
 }
+

@@ -32,9 +32,10 @@ export default function RepoUrlForm({
 
                     <Input
                         value={url}
+                        disabled={loading}
                         placeholder="https://github.com/organization/repository"
                         onChange={(e) => onChange(e.target.value)}
-                        className="py-1 text-sm font-mono placeholder:text-slate-500 placeholder:font-sans"
+                        className="py-1 text-sm font-mono placeholder:text-slate-500 placeholder:font-sans disabled:opacity-50 disabled:cursor-not-allowed"
                     />
 
                     <span className="hidden sm:inline-block rounded border border-[#232a3d] bg-[#171c2a] px-2 py-0.5 text-[11px] font-mono text-slate-400 select-none shrink-0">
@@ -47,8 +48,20 @@ export default function RepoUrlForm({
                     disabled={loading || !url.trim()}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#9bb8ff] px-6 py-2.5 text-sm font-semibold text-[#0a1020] transition hover:bg-[#8ab0ff] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 shrink-0"
                 >
-                    <MdOutlineAnalytics className="text-base" />
-                    <span>{loading ? "Analyzing..." : "Analyze"}</span>
+                    {loading ? (
+                        <>
+                            <svg className="animate-spin h-4 w-4 text-[#0a1020]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Analyzing...</span>
+                        </>
+                    ) : (
+                        <>
+                            <MdOutlineAnalytics className="text-base" />
+                            <span>Analyze</span>
+                        </>
+                    )}
                 </button>
             </form>
 

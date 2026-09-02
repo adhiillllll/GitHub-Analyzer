@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import validateGithubUrl from "@/validators/github.validator"
 import { GitHubRepository, GitHubLanguages, GitHubContributor, RepositoryAnalysis } from "@/types/github"
 import RepositoryCard from "./RepositoryCard"
@@ -14,6 +15,9 @@ import analyzeRepository from "@/lib/repositoryAnalyzer"
 import { CodeHealthResult } from "@/types/codeHealth"
 
 export default function SearchForm() {
+  const searchParams = useSearchParams()
+  const lastAnalyzedRepoRef = useRef<string | null>(null)
+
   const [url, setUrl] = useState("")
   const [repository, setRepository] = useState<GitHubRepository | null>(null)
   const [error, setError] = useState("")
@@ -119,8 +123,30 @@ export default function SearchForm() {
     }
   }
 
-  const fetchRepoData = async (targetUrl: string) => {
+  const fetchRepoData = async (targetUrl: string, updateUrl = true) => {
+    if (loading) return
+
     setError("")
+
+    const trimmedUrl = targetUrl.trim()
+
+    if (!trimmedUrl) {
+      setError("Please enter a GitHub repository URL.")
+      return
+    }
+
+    const fullTargetUrl = trimmedUrl.includes("://")
+      ? trimmedUrl
+      : `https://github.com/${trimmedUrl}`
+
+    const result = validateGithubUrl(fullTargetUrl)
+
+    if (!result.valid) {
+      setError(result.error ?? "Invalid repository URL.")
+      return
+    }
+
+    setUrl(fullTargetUrl)
     setRepository(null)
     setLanguages({})
     setContributors([])
@@ -130,13 +156,6 @@ export default function SearchForm() {
     setCodeHealth(null)
     setCodeHealthLoading(false)
     setIsFavorite(false)
-
-    const result = validateGithubUrl(targetUrl.trim())
-
-    if (!result.valid) {
-      setError(result.error ?? "Invalid URL")
-      return
-    }
 
     setLoading(true)
 
@@ -185,6 +204,15 @@ export default function SearchForm() {
       setAnalysis(repositoryAnalysis)
       loadFavoriteState(repositoryData.html_url)
 
+      lastAnalyzedRepoRef.current = repositoryData.full_name.toLowerCase()
+
+      if (updateUrl && typeof window !== "undefined") {
+        const newSearch = `?repo=${encodeURIComponent(repositoryData.full_name)}`
+        if (window.location.search !== newSearch) {
+          window.history.pushState({ repo: repositoryData.full_name }, "", newSearch)
+        }
+      }
+
       if (result.owner && result.repo) {
         generateCodeHealth(
           result.owner,
@@ -199,21 +227,62 @@ export default function SearchForm() {
       setContributors([])
       setReadme("")
       setAnalysis(null)
-      setError("Failed to analyze repository.")
-      console.error(err)
+      setError(err instanceof Error ? err.message : "Failed to analyze repository.")
+      console.error("Repository analysis error:", err)
     } finally {
       setLoading(false)
     }
   }
 
+  useEffect(() => {
+    const repoParam = searchParams.get("repo")?.trim()
+
+    if (repoParam) {
+      if (lastAnalyzedRepoRef.current === repoParam.toLowerCase()) {
+        return
+      }
+
+      const fullTargetUrl = repoParam.includes("://")
+        ? repoParam
+        : `https://github.com/${repoParam}`
+
+      const validation = validateGithubUrl(fullTargetUrl)
+
+      if (!validation.valid) {
+        setError(validation.error ?? "Invalid repository parameter in URL.")
+        return
+      }
+
+      fetchRepoData(repoParam, false)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      const currentRepo = params.get("repo")?.trim()
+
+      if (currentRepo) {
+        if (lastAnalyzedRepoRef.current !== currentRepo.toLowerCase()) {
+          fetchRepoData(currentRepo, false)
+        }
+      } else {
+        handleResetAnalysis()
+      }
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    fetchRepoData(url)
+    fetchRepoData(url, true)
   }
 
   const handleSelectRecentRepo = (selectedUrl: string) => {
     setUrl(selectedUrl)
-    fetchRepoData(selectedUrl)
+    fetchRepoData(selectedUrl, true)
   }
 
   const handleResetAnalysis = () => {
@@ -229,6 +298,10 @@ export default function SearchForm() {
     setCodeHealthError(null)
     setIsFavorite(false)
     setError("")
+    lastAnalyzedRepoRef.current = null
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.pushState(null, "", window.location.pathname)
+    }
   }
 
   const handleRetryCodeHealth = () => {
@@ -335,3 +408,4 @@ export default function SearchForm() {
     </div>
   )
 }
+
