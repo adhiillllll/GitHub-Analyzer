@@ -6,21 +6,36 @@ const githubApi = axios.create({
     baseURL: "https://api.github.com",
     headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
         "X-GitHub-Api-Version": "2022-11-28",
     },
 });
+
+async function safeGithubGet<T>(url: string): Promise<T> {
+    try {
+        const response = await githubApi.get<T>(url);
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+            // If authenticated request receives 401 (e.g. invalid or expired GITHUB_TOKEN),
+            // retry this specific request once without the Authorization header.
+            const unauthResponse = await githubApi.get<T>(url, {
+                headers: {
+                    Authorization: undefined,
+                },
+            });
+            return unauthResponse.data;
+        }
+        throw error;
+    }
+}
 
 
 export async function getRepository(
     owner: string,
     repo: string
 ): Promise<GitHubRepository> {
-
-    const response = await githubApi.get<GitHubRepository>(`/repos/${owner}/${repo}`);
-
-    return response.data;
-
+    return safeGithubGet<GitHubRepository>(`/repos/${owner}/${repo}`);
 }
 
 
@@ -28,10 +43,7 @@ export async function getRepositoryLanguages(
     owner: string,
     repo: string
 ): Promise<GitHubLanguages> {
-
-    const response = await githubApi.get<GitHubLanguages>(`/repos/${owner}/${repo}/languages`);
-
-    return response.data;
+    return safeGithubGet<GitHubLanguages>(`/repos/${owner}/${repo}/languages`);
 }
 
 
@@ -39,10 +51,7 @@ export async function getRepositoryContributors(
     owner: string,
     repo: string
 ): Promise<GitHubContributor[]> {
-
-    const response = await githubApi.get<GitHubContributor[]>(`/repos/${owner}/${repo}/contributors`);
-
-    return response.data;
+    return safeGithubGet<GitHubContributor[]>(`/repos/${owner}/${repo}/contributors`);
 }
 
 
@@ -50,10 +59,7 @@ export async function getRepositoryReadme(
     owner: string,
     repo: string
 ): Promise<GitHubReadme> {
-
-    const response = await githubApi.get<GitHubReadme>(`/repos/${owner}/${repo}/readme`);
-
-    return response.data;
+    return safeGithubGet<GitHubReadme>(`/repos/${owner}/${repo}/readme`);
 }
 
 
@@ -62,12 +68,9 @@ export async function getRepositoryTree(
     repo: string,
     branch: string
 ): Promise<GitHubTreeResponse> {
-
-    const response = await githubApi.get<GitHubTreeResponse>(
+    return safeGithubGet<GitHubTreeResponse>(
         `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`
     );
-
-    return response.data;
 }
 
 
@@ -76,12 +79,9 @@ export async function getRepositoryFile(
     repo: string,
     path: string
 ): Promise<GitHubFileContent> {
-
-    const response = await githubApi.get<GitHubFileContent>(
+    return safeGithubGet<GitHubFileContent>(
         `/repos/${owner}/${repo}/contents/${path}`
     );
-
-    return response.data;
 }
 
 

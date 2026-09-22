@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { GitHubRepository, GitHubLanguages, GitHubContributor, RepositoryAnalysis } from "@/types/github";
 import LanguageList from "./LanguageList";
 import ContributorList from "./ContributorList";
@@ -6,11 +6,12 @@ import ReadmeCard from "./ReadmeCard";
 import AnalysisCard from "./AnalysisCard";
 import SummaryPanel from "./SummaryPanel";
 import CodeHealthPanel, { AnalysisMeta } from "./CodeHealthPanel";
+import ExportReportModal from "./ExportReportModal";
 import { CodeHealthResult } from "@/types/codeHealth";
 import { formatNumber } from "@/utils/formatNumber";
 import { formatSize } from "@/utils/formatSize";
 
-import { BiFolder, BiStar, BiGitRepoForked, BiErrorCircle, BiGitPullRequest, BiCompass } from "react-icons/bi";
+import { BiFolder, BiStar, BiGitRepoForked, BiErrorCircle, BiGitPullRequest, BiCompass, BiDownload } from "react-icons/bi";
 import { FiExternalLink, FiGitBranch } from "react-icons/fi";
 
 type RepositoryCardProps = {
@@ -58,7 +59,7 @@ export default function RepositoryCard({
   favoriteLoading,
   onToggleFavorite,
 }: RepositoryCardProps) {
-
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const subTabs = [
     { id: "Summary", label: "Summary" },
@@ -78,7 +79,16 @@ export default function RepositoryCard({
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="inline-flex items-center gap-2 border border-[#00d68f]/40 bg-[#00d68f]/10 hover:bg-[#00d68f]/20 text-[#00d68f] text-xs px-3.5 py-2 rounded-lg font-medium transition"
+          >
+            <BiDownload className="text-sm" />
+            <span>Export Report</span>
+          </button>
+
           <button
             type="button"
             onClick={onToggleFavorite}
@@ -275,6 +285,21 @@ export default function RepositoryCard({
 
         </div>
       </div>
+
+      <ExportReportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        repository={repository}
+        languages={languages}
+        contributors={contributors}
+        readme={readme}
+        analysis={analysis}
+        aiSummary={aiSummary}
+        aiLoading={aiLoading}
+        codeHealth={codeHealth}
+        codeHealthLoading={codeHealthLoading}
+        codeHealthError={codeHealthError}
+      />
     </div>
   );
 }
