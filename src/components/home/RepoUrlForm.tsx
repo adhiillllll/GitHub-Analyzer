@@ -1,11 +1,14 @@
 import Input from "../ui/Input";
 import { IoLink } from "react-icons/io5";
 import { MdOutlineAnalytics } from "react-icons/md";
+import AnalysisProgressPanel from "./AnalysisProgressPanel";
+import { AnalysisStage } from "@/types/analysisProgress";
 
 type RepoUrlFormProps = {
     url: string;
     loading: boolean;
     error: string;
+    analysisStage?: AnalysisStage;
     onChange: (value: string) => void;
     onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }
@@ -14,6 +17,7 @@ export default function RepoUrlForm({
     url,
     loading,
     error,
+    analysisStage = "idle",
     onChange,
     onSubmit
 }: RepoUrlFormProps) {
@@ -70,6 +74,8 @@ export default function RepoUrlForm({
                     {error}
                 </p>
             )}
+
+            <AnalysisProgressPanel currentStage={analysisStage} />
         </div>
     )
 }

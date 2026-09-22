@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import validateGithubUrl from "@/validators/github.validator"
 import { GitHubRepository, GitHubLanguages, GitHubContributor, RepositoryAnalysis } from "@/types/github"
 import RepositoryCard from "./RepositoryCard"
+import RepositorySkeleton from "./RepositorySkeleton"
 import Sidebar from "./Sidebar"
 import Navbar from "../layout/Navbar"
 import LogoSection from "../home/LogoSection"
@@ -13,6 +14,7 @@ import RecentAnalysis from "../home/RecentAnalysis"
 import { decodeBase64 } from "@/utils/decodeBase64"
 import analyzeRepository from "@/lib/repositoryAnalyzer"
 import { CodeHealthResult } from "@/types/codeHealth"
+import { AnalysisStage } from "@/types/analysisProgress"
 
 export default function SearchForm() {
   const searchParams = useSearchParams()
@@ -22,6 +24,7 @@ export default function SearchForm() {
   const [repository, setRepository] = useState<GitHubRepository | null>(null)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle")
   const [languages, setLanguages] = useState<GitHubLanguages>({})
   const [contributors, setContributors] = useState<GitHubContributor[]>([])
   const [readme, setReadme] = useState("")
@@ -63,6 +66,7 @@ export default function SearchForm() {
     branch: string
   ) => {
     try {
+      setAnalysisStage("generating-code-health");
       setCodeHealthLoading(true);
       setCodeHealthError(null);
       setCodeHealth(null);
@@ -86,10 +90,12 @@ export default function SearchForm() {
       }
 
       setCodeHealth(data.codeHealth);
+      setAnalysisStage("complete");
     } catch (error) {
       console.error("Code Health error:", error);
       setCodeHealth(null);
       setCodeHealthError(error instanceof Error ? error.message : "Failed to analyze code health.");
+      setAnalysisStage("idle");
     } finally {
       setCodeHealthLoading(false);
     }
@@ -158,6 +164,7 @@ export default function SearchForm() {
     setIsFavorite(false)
 
     setLoading(true)
+    setAnalysisStage("fetching-repo")
 
     try {
       const response = await fetch("/api/github", {
@@ -177,6 +184,8 @@ export default function SearchForm() {
         throw new Error(data.error || "Failed to fetch repository.");
       }
 
+      setAnalysisStage("loading-data")
+
       const repositoryData = data.repository;
       const languageData = data.languages;
       const contributorData = data.contributors;
@@ -190,6 +199,8 @@ export default function SearchForm() {
           console.log("Could not decode README.");
         }
       }
+
+      setAnalysisStage("calculating-metrics")
 
       const repositoryAnalysis = analyzeRepository(
         repositoryData,
@@ -219,6 +230,8 @@ export default function SearchForm() {
           result.repo,
           repositoryData.default_branch
         )
+      } else {
+        setAnalysisStage("complete")
       }
 
     } catch (err) {
@@ -227,6 +240,7 @@ export default function SearchForm() {
       setContributors([])
       setReadme("")
       setAnalysis(null)
+      setAnalysisStage("idle")
       setError(err instanceof Error ? err.message : "Failed to analyze repository.")
       console.error("Repository analysis error:", err)
     } finally {
@@ -298,6 +312,7 @@ export default function SearchForm() {
     setCodeHealthError(null)
     setIsFavorite(false)
     setError("")
+    setAnalysisStage("idle")
     lastAnalyzedRepoRef.current = null
     if (typeof window !== "undefined" && window.location.search) {
       window.history.pushState(null, "", window.location.pathname)
@@ -348,7 +363,7 @@ export default function SearchForm() {
       <div className="flex-1 flex flex-col">
         {!repository ? (
 
-          <main className="flex-1 flex items-center justify-center p-6 sm:p-10">
+          <main className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
             <div className="w-full max-w-3xl mx-auto space-y-8 my-auto">
               <LogoSection />
 
@@ -356,6 +371,7 @@ export default function SearchForm() {
                 url={url}
                 loading={loading}
                 error={error}
+                analysisStage={analysisStage}
                 onChange={(value) => {
                   setUrl(value)
                   if (!value.trim()) {
@@ -365,7 +381,15 @@ export default function SearchForm() {
                 onSubmit={handleSubmit}
               />
 
-              <RecentAnalysis onSelectRepo={handleSelectRecentRepo} />
+              {loading && (
+                <div className="mt-8 w-full border-t border-[#1e2434] pt-8">
+                  <RepositorySkeleton />
+                </div>
+              )}
+
+              {!loading && (
+                <RecentAnalysis onSelectRepo={handleSelectRecentRepo} />
+              )}
             </div>
           </main>
         ) : (
@@ -408,4 +432,5 @@ export default function SearchForm() {
     </div>
   )
 }
+
 
