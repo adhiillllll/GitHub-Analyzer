@@ -15,6 +15,7 @@ import { decodeBase64 } from "@/utils/decodeBase64"
 import analyzeRepository from "@/lib/repositoryAnalyzer"
 import { CodeHealthResult } from "@/types/codeHealth"
 import { AnalysisStage } from "@/types/analysisProgress"
+import { getCachedAnalysis, setCachedAnalysis, updateCachedCodeHealth } from "@/utils/analysisCache"
 
 export default function SearchForm() {
   const searchParams = useSearchParams()
@@ -90,6 +91,7 @@ export default function SearchForm() {
       }
 
       setCodeHealth(data.codeHealth);
+      updateCachedCodeHealth(owner, repo, data.codeHealth);
       setAnalysisStage("complete");
     } catch (error) {
       console.error("Code Health error:", error);
@@ -129,7 +131,7 @@ export default function SearchForm() {
     }
   }
 
-  const fetchRepoData = async (targetUrl: string, updateUrl = true) => {
+  const fetchRepoData = async (targetUrl: string, updateUrl = true, forceFresh = false) => {
     if (loading) return
 
     setError("")
@@ -150,6 +152,44 @@ export default function SearchForm() {
     if (!result.valid) {
       setError(result.error ?? "Invalid repository URL.")
       return
+    }
+
+    // 1. Check client-side cache if not forcing a fresh re-analysis
+    if (!forceFresh && result.owner && result.repo) {
+      const cached = getCachedAnalysis(result.owner, result.repo)
+      if (cached) {
+        setUrl(fullTargetUrl)
+        setRepository(cached.repository)
+        setLanguages(cached.languages)
+        setContributors(cached.contributors)
+        setReadme(cached.readme)
+        setAnalysis(cached.analysis)
+        setAiSummary("")
+        loadFavoriteState(cached.repository.html_url)
+
+        lastAnalyzedRepoRef.current = cached.repository.full_name.toLowerCase()
+
+        if (updateUrl && typeof window !== "undefined") {
+          const newSearch = `?repo=${encodeURIComponent(cached.repository.full_name)}`
+          if (window.location.search !== newSearch) {
+            window.history.pushState({ repo: cached.repository.full_name }, "", newSearch)
+          }
+        }
+
+        if (cached.codeHealth) {
+          setCodeHealth(cached.codeHealth)
+          setCodeHealthLoading(false)
+          setCodeHealthError(null)
+          setAnalysisStage("complete")
+        } else {
+          generateCodeHealth(
+            result.owner,
+            result.repo,
+            cached.repository.default_branch
+          )
+        }
+        return
+      }
     }
 
     setUrl(fullTargetUrl)
@@ -214,6 +254,18 @@ export default function SearchForm() {
       setReadme(decodedReadme)
       setAnalysis(repositoryAnalysis)
       loadFavoriteState(repositoryData.html_url)
+
+      // Save successful result in client-side cache
+      if (result.owner && result.repo) {
+        setCachedAnalysis(result.owner, result.repo, {
+          repository: repositoryData,
+          languages: languageData,
+          contributors: contributorData,
+          readme: decodedReadme,
+          analysis: repositoryAnalysis,
+          codeHealth: null,
+        })
+      }
 
       lastAnalyzedRepoRef.current = repositoryData.full_name.toLowerCase()
 
