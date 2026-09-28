@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SearchHistory } from "@prisma/client";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { prisma } from "@/lib/prisma";
 
@@ -16,7 +17,7 @@ export async function GET() {
   });
 
   const seen = new Set<string>();
-  const history = rawHistory.filter((item) => {
+  const history = rawHistory.filter((item: SearchHistory) => {
     if (seen.has(item.githubUrl)) {
       return false;
     }
